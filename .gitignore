@@ -39,6 +39,8 @@ Thumbs.db
 assets/
 03-ARCHIVE/
 02-WORK-LATER-ROADMAP/
+
+execution-steps/
 *.mp4
 *.mov
 *.avi
