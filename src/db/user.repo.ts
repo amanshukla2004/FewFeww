@@ -22,6 +22,8 @@ export interface User {
   nudges_paused_until: Date | null;
   daily_proactive_cap: number;
   output_language: string;
+  phone_number?: string | null;
+  channel?: 'TELEGRAM' | 'WHATSAPP';
   onboarding_state: OnboardingState;
   consented_at: Date | null;
   status: 'ACTIVE' | 'BLOCKED' | 'DELETED';
@@ -69,6 +71,38 @@ export class UserRepository {
   async findByTelegramId(telegramUserId: number | string): Promise<User | null> {
     const res = await pool.query('SELECT * FROM users WHERE telegram_user_id = $1', [String(telegramUserId)]);
     return res.rows[0] || null;
+  }
+
+  async findOrCreateByPhone(
+    phone: string,
+    firstName?: string | null
+  ): Promise<{ user: User; isNew: boolean }> {
+    const cleanPhone = phone.replace(/[^\d+]/g, '');
+    const existing = await pool.query('SELECT * FROM users WHERE phone_number = $1', [cleanPhone]);
+    if (existing.rowCount && existing.rowCount > 0) {
+      return { user: existing.rows[0], isNew: false };
+    }
+
+    // Deterministic virtual ID to satisfy BIGINT NOT NULL UNIQUE constraint
+    let hashNum = 0;
+    for (let i = 0; i < cleanPhone.length; i++) {
+      hashNum = (hashNum * 31 + cleanPhone.charCodeAt(i)) % 9007199254740991;
+    }
+    const virtualTgId = Math.abs(hashNum) + 500000000000;
+
+    const insertQuery = `
+      INSERT INTO users (telegram_user_id, telegram_chat_id, phone_number, channel, first_name, onboarding_state)
+      VALUES ($1, $2, $3, 'WHATSAPP', $4, 'ACTIVE')
+      RETURNING *;
+    `;
+    const res = await pool.query(insertQuery, [
+      String(virtualTgId),
+      String(virtualTgId),
+      cleanPhone,
+      firstName || null,
+    ]);
+
+    return { user: res.rows[0], isNew: true };
   }
 
   async findById(id: number | string): Promise<User | null> {

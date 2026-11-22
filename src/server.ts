@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import { config } from './config.js';
 import { healthRoutes } from './routes/health.js';
 import { webhookRoutes } from './routes/webhook.js';
+import { whatsappRoutes } from './routes/whatsapp.js';
 
 export function buildServer() {
   const app = Fastify({
@@ -21,6 +22,9 @@ export function buildServer() {
 
   // Register Telegram Webhook Route
   app.register(webhookRoutes);
+
+  // Register WhatsApp Webhook Gateway Route
+  app.register(whatsappRoutes);
 
   return app;
 }
