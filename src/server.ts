@@ -6,6 +6,7 @@ import { healthRoutes } from './routes/health.js';
 import { webhookRoutes } from './routes/webhook.js';
 import { whatsappRoutes } from './routes/whatsapp.js';
 import { dashboardRoutes } from './routes/dashboard.js';
+import { landingRoutes } from './routes/landing.js';
 
 export function buildServer() {
   const app = Fastify({
@@ -29,6 +30,9 @@ export function buildServer() {
 
   // Register Interactive Web Dashboard Route
   app.register(dashboardRoutes);
+
+  // Register Landing Website & Transparent Pricing Page
+  app.register(landingRoutes);
 
   return app;
 }
