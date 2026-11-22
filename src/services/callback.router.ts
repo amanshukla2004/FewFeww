@@ -50,6 +50,38 @@ export class CallbackRouter {
       return;
     }
 
+    if (data === 'cfg:lang_menu') {
+      const msg = `🌐 <b>Preferred Output Language</b>\n\nCurrent: <b>${user.output_language || 'English'}</b>\n\nChoose which language you want me to reply in:`;
+      const keyboard = [
+        [
+          { text: '🇬🇧 English', callback_data: 'cfg:lang:English' },
+          { text: '🇮🇳 हिन्दी (Hindi)', callback_data: 'cfg:lang:Hindi' },
+        ],
+        [
+          { text: '🗣️ Hinglish', callback_data: 'cfg:lang:Hinglish' },
+          { text: '🇪🇸 Español', callback_data: 'cfg:lang:Spanish' },
+        ],
+      ];
+      if (messageId) {
+        await this.tg.editMessageText(chatId, messageId, msg, keyboard);
+      } else {
+        await this.tg.sendMessage(chatId, msg, keyboard);
+      }
+      return;
+    }
+
+    if (data.startsWith('cfg:lang:')) {
+      const lang = data.replace('cfg:lang:', '');
+      await userRepo.setOutputLanguage(user.id, lang);
+      const reply = `🌐 <b>Language Updated!</b>\n\nI will now reply in <b>${lang}</b>. You can still message me in any language or dialect!`;
+      if (messageId) {
+        await this.tg.editMessageText(chatId, messageId, reply);
+      } else {
+        await this.tg.sendMessage(chatId, reply);
+      }
+      return;
+    }
+
     // 4. Account Deletion Callbacks (Two-Tap Confirmation)
     if (data === 'c:del_confirm') {
       await privacyService.deleteUserCascade(user.id);

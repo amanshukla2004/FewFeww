@@ -62,6 +62,7 @@ export class MorningDigest {
       telegram_chat_id: String(r.telegram_chat_id),
       first_name: r.first_name,
       language_code: r.language_code,
+      output_language: r.output_language || 'English',
       timezone: r.timezone,
       default_reminder_time: r.default_reminder_time,
       lead_minutes: r.lead_minutes,

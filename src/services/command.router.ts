@@ -47,10 +47,26 @@ export class CommandRouter {
             `/today • /list • /settings • /pause • /export • /deleteme`,
         };
 
+      case '/language':
+        return {
+          text: `🌐 <b>Preferred Output Language</b>\n\nCurrent: <b>${user.output_language || 'English'}</b>\n\nI can understand messages in any language, and I will always respond in your chosen language below:`,
+          keyboard: [
+            [
+              { text: '🇬🇧 English', callback_data: 'cfg:lang:English' },
+              { text: '🇮🇳 हिन्दी (Hindi)', callback_data: 'cfg:lang:Hindi' },
+            ],
+            [
+              { text: '🗣️ Hinglish', callback_data: 'cfg:lang:Hinglish' },
+              { text: '🇪🇸 Español', callback_data: 'cfg:lang:Spanish' },
+            ],
+          ],
+        };
+
       case '/settings':
         return {
           text:
             `⚙️ <b>Your FewFeww Settings</b>\n\n` +
+            `• <b>Language:</b> <code>${user.output_language || 'English'}</code>\n` +
             `• <b>Timezone:</b> <code>${user.timezone}</code>\n` +
             `• <b>Default Reminder Time:</b> <code>${user.default_reminder_time}</code>\n` +
             `• <b>Quiet Hours:</b> <code>${user.quiet_start} – ${user.quiet_end}</code>\n` +
@@ -59,11 +75,14 @@ export class CommandRouter {
             `Tap below to update your preferences:`,
           keyboard: [
             [
-              { text: '🌐 Change Timezone', callback_data: 'cfg:tz' },
-              { text: '⏰ Change Default Time', callback_data: 'cfg:time' },
+              { text: '🗣️ Language', callback_data: 'cfg:lang_menu' },
+              { text: '🌐 Timezone', callback_data: 'cfg:tz' },
             ],
             [
-              { text: '🌙 Adjust Quiet Hours', callback_data: 'cfg:quiet' },
+              { text: '⏰ Default Time', callback_data: 'cfg:time' },
+              { text: '🌙 Quiet Hours', callback_data: 'cfg:quiet' },
+            ],
+            [
               { text: user.nudges_enabled ? '⏸ Pause Nudges' : '▶️ Resume Nudges', callback_data: 'cfg:toggle_nudge' },
             ],
           ],

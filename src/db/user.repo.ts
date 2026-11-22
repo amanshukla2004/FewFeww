@@ -21,6 +21,7 @@ export interface User {
   nudges_enabled: boolean;
   nudges_paused_until: Date | null;
   daily_proactive_cap: number;
+  output_language: string;
   onboarding_state: OnboardingState;
   consented_at: Date | null;
   status: 'ACTIVE' | 'BLOCKED' | 'DELETED';
@@ -110,6 +111,14 @@ export class UserRepository {
       RETURNING *;
       `,
       [String(userId), time]
+    );
+    return res.rows[0];
+  }
+
+  async setOutputLanguage(userId: number | string, language: string): Promise<User> {
+    const res = await pool.query(
+      `UPDATE users SET output_language = $2, updated_at = now() WHERE id = $1 RETURNING *;`,
+      [String(userId), language.trim()]
     );
     return res.rows[0];
   }

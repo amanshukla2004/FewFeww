@@ -422,6 +422,17 @@ export class UpdateDispatcher {
         break;
       }
 
+      case 'set_language': {
+        const lang = call.args.language;
+        await userRepo.setOutputLanguage(user.id, lang);
+        await this.sendBotMessage(
+          user.id,
+          chatId,
+          `🌐 <b>Language Updated!</b>\n\nI will now reply in <b>${lang}</b>. You can continue sending messages in any language!`
+        );
+        break;
+      }
+
       case 'ask_clarification': {
         if (call.args.disambiguation_type === 'TASK_OR_NOTE_OR_HABIT') {
           const itemTitle = call.args.pending_title || 'Item';

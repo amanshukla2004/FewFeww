@@ -302,6 +302,24 @@ export class LlmService {
       {
         type: 'function',
         function: {
+          name: 'set_language',
+          description:
+            'Change the user preferred output/reply language (e.g. "reply in Hindi from now on", "switch language to English", "speak in Spanish").',
+          parameters: {
+            type: 'object',
+            properties: {
+              language: {
+                type: 'string',
+                description: 'The preferred language (e.g. "English", "Hindi", "Hinglish", "Spanish")',
+              },
+            },
+            required: ['language'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'out_of_scope',
           description: 'Call when message is conversational chit-chat, a joke, or completely unrelated to personal tasks/notes.',
           parameters: {
@@ -338,6 +356,13 @@ Default reminder time: ${user.default_reminder_time}.
 Use the provided current local date and time to resolve words like "tomorrow", "Friday", "in 30 mins".
 If the user gives a date but no specific time, set time_is_explicit to false.
 If the user mentions repeating frequency (e.g. "daily", "every day", "each morning"), set recurrence to DAILY or WEEKLY.
+
+Multilingual & Output Language Rules:
+- The user message can be in ANY language, dialect, or mix (English, Hindi, Hinglish, Spanish, French, etc.).
+- ALWAYS interpret and extract intent accurately regardless of input language.
+- The user's preferred output language is: ${user.output_language || 'English'}.
+- All questions, confirmations, and answers MUST be in ${user.output_language || 'English'} unless the user explicitly asks to speak in a different language.
+- If the user explicitly asks to change their language preference (e.g. "reply in Hindi", "switch language to English"), call set_language.
 
 Conversation Memory & Context Rules:
 - Recent message history is provided. You MUST examine prior messages to understand context!
