@@ -352,8 +352,20 @@ export class UpdateDispatcher {
       }
 
       case 'save_note': {
-        const res = await taskService.saveNote(user.id, call.args.content, call.args.title, call.args.url, messageId);
+        const res = await taskService.saveNote(user.id, call.args.content, call.args.title, call.args.tags, call.args.url, messageId);
         await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
+        break;
+      }
+
+      case 'append_note': {
+        const res = await taskService.appendNote(user.id, call.args.target_note, call.args.content);
+        await this.sendBotMessage(user.id, chatId, res.text);
+        break;
+      }
+
+      case 'list_notes': {
+        const res = await taskService.listNotes(user.id, call.args.tag);
+        await this.sendBotMessage(user.id, chatId, res.text);
         break;
       }
 
@@ -381,7 +393,34 @@ export class UpdateDispatcher {
         break;
       }
 
+      case 'retract_command': {
+        const item = call.args.cancelled_intent ? ` for "${call.args.cancelled_intent}"` : '';
+        await this.sendBotMessage(
+          user.id,
+          chatId,
+          `👌 Cancelled. I did not create that task${item}.`
+        );
+        break;
+      }
+
       case 'ask_clarification': {
+        if (call.args.disambiguation_type === 'TASK_OR_NOTE_OR_HABIT') {
+          const itemTitle = call.args.pending_title || 'Item';
+          await this.sendBotMessage(
+            user.id,
+            chatId,
+            `❓ <b>How would you like to track:</b> <i>"${itemTitle}"</i>?`,
+            [
+              [
+                { text: '✅ To-Do Task', callback_data: `c:kind:task:${itemTitle}` },
+                { text: '📊 Daily Habit', callback_data: `c:kind:habit:${itemTitle}` },
+              ],
+              [{ text: '📌 Reference Note', callback_data: `c:kind:note:${itemTitle}` }],
+            ]
+          );
+          break;
+        }
+
         const title = call.args.pending_title;
         if (title || call.args.reason === 'missing_schedule_time') {
           const taskTitle = title || 'New Task';

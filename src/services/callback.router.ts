@@ -75,6 +75,47 @@ export class CallbackRouter {
       await this.handleClarifyTimeCallback(user, chatId, messageId, action);
       return;
     }
+
+    // 6. Clarify Kind Action Callbacks (c:kind:<kind>:<title>)
+    if (data.startsWith('c:kind:')) {
+      const parts = data.split(':');
+      const kind = parts[2]; // task, habit, note
+      const title = parts.slice(3).join(':');
+      await this.handleClarifyKindCallback(user, chatId, messageId, kind, title);
+      return;
+    }
+  }
+
+  private async handleClarifyKindCallback(
+    user: User,
+    chatId: number | string,
+    messageId: number | undefined,
+    kind: string,
+    title: string
+  ): Promise<void> {
+    const cleanTitle = title.trim();
+    let reply = '';
+
+    if (kind === 'task') {
+      const res = await taskService.createTask({
+        userId: user.id,
+        title: cleanTitle,
+        userTimezone: user.timezone,
+        defaultReminderTime: user.default_reminder_time,
+      });
+      reply = res.text;
+    } else if (kind === 'note') {
+      const res = await taskService.saveNote(user.id, cleanTitle, cleanTitle);
+      reply = res.text;
+    } else if (kind === 'habit') {
+      reply = `📊 <b>Tracking Habit:</b> <i>"${cleanTitle}"</i>\n\nI'll track your daily progress and show your consistency graphs on your dashboard!`;
+    }
+
+    if (messageId) {
+      await this.tg.editMessageText(chatId, messageId, reply);
+    } else {
+      await this.tg.sendMessage(chatId, reply);
+    }
   }
 
   private async handleClarifyTimeCallback(

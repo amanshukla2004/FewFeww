@@ -46,8 +46,13 @@ export class MorningDigest {
       WHERE status = 'ACTIVE'
         AND morning_plan_enabled = true
         AND (last_morning_plan_on IS NULL OR last_morning_plan_on < (now() AT TIME ZONE timezone)::date)
-        AND (now() AT TIME ZONE timezone)::time >= morning_plan_time
-        AND (now() AT TIME ZONE timezone)::time < morning_plan_time + interval '3 hours';
+        AND (
+          CASE 
+            WHEN morning_plan_time + interval '3 hours' < morning_plan_time 
+            THEN ((now() AT TIME ZONE timezone)::time >= morning_plan_time OR (now() AT TIME ZONE timezone)::time < morning_plan_time + interval '3 hours')
+            ELSE ((now() AT TIME ZONE timezone)::time >= morning_plan_time AND (now() AT TIME ZONE timezone)::time < morning_plan_time + interval '3 hours')
+          END
+        );
       `
     );
 

@@ -42,8 +42,12 @@ describe('Morning Plan Digest Service (Stage 2 Nudge Ladder)', () => {
       [dbUser.id, overdueDue]
     );
 
-    // 2. Today's task (ensure future time on today so it falls under Today's Agenda)
-    const todayDue = DateTime.now().setZone(dbUser.timezone).plus({ hours: 2 }).toJSDate();
+    // 2. Today's task (guarantee a timestamp on today before midnight)
+    const nowLocal = DateTime.now().setZone(dbUser.timezone);
+    const candidate = nowLocal.plus({ minutes: 15 });
+    const todayDue = candidate.day === nowLocal.day
+      ? candidate.toJSDate()
+      : nowLocal.endOf('day').minus({ minutes: 1 }).toJSDate();
     await pool.query(
       `
       INSERT INTO tasks (user_id, title, status, due_at, due_has_time)

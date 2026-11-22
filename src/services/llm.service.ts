@@ -87,9 +87,42 @@ export class LlmService {
             properties: {
               content: { type: 'string', description: 'The note text or thought content' },
               title: { type: 'string', description: 'Optional short title' },
+              tags: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Optional 1-3 keywords or tags categorizing the note (e.g. ["agenda", "ideas"])',
+              },
               url: { type: 'string', description: 'Optional URL link mentioned' },
             },
             required: ['content'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'append_note',
+          description: 'Append content or an extra item to an existing note (e.g. "add this to my meeting agenda note").',
+          parameters: {
+            type: 'object',
+            properties: {
+              target_note: { type: 'string', description: 'Title or topic of the existing note to append to' },
+              content: { type: 'string', description: 'New information or bullet point to append' },
+            },
+            required: ['target_note', 'content'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'list_notes',
+          description: 'List saved notes or filter by tag (e.g. "show my notes", "list notes", "show notes tagged work").',
+          parameters: {
+            type: 'object',
+            properties: {
+              tag: { type: 'string', description: 'Optional tag to filter notes by' },
+            },
           },
         },
       },
@@ -188,12 +221,34 @@ export class LlmService {
             properties: {
               question: { type: 'string', description: 'Concise question to present to user' },
               reason: { type: 'string', description: 'Reason clarification is needed, e.g. "missing_schedule_time"' },
+              disambiguation_type: {
+                type: 'string',
+                enum: ['SCHEDULE_TIME', 'TASK_OR_NOTE_OR_HABIT', 'GENERAL'],
+                description: 'Type of clarification needed',
+              },
               pending_title: {
                 type: 'string',
-                description: 'The clean task title being scheduled (e.g. "Dentist appointment")',
+                description: 'The clean task or item title being discussed (e.g. "Dentist appointment")',
               },
             },
             required: ['question'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'retract_command',
+          description:
+            'Call when the user asks to perform an action but cancels, retracts, or aborts it in the same message (e.g. "make a todo about sending mail then cancel the task", "remind me to call John... actually never mind", "create a reminder... forget it"). Do NOT create any task or note!',
+          parameters: {
+            type: 'object',
+            properties: {
+              cancelled_intent: {
+                type: 'string',
+                description: 'The task or action the user decided not to create',
+              },
+            },
           },
         },
       },
@@ -242,6 +297,19 @@ Conversation Memory & Context Rules:
 - If the assistant previously asked for a time or detail (e.g. "What time each day should I remind you about DSA questions?"), and the user replies with a time (e.g. "10 AM") or confirmation, DO NOT ask for clarification again! Execute create_task immediately with the task title from the prior turn, the time from this turn, and appropriate recurrence (e.g. DAILY).
 - If the user says "reminder", "task", "i told you about this", or refers to earlier messages, look at the message history to fulfill their request. Never call out_of_scope when the user is trying to set up or manage tasks.
 - Avoid repeated clarification questions. If enough information exists across turns to create a task, execute create_task!
+
+Notes Rules:
+- If user says "save this to my notes: X", "add to notes: X", or gives an idea/quote, call save_note with content=X, a concise title, and 1-3 relevant tags.
+- If user says "add this to my X note" or "append Y to my X note", call append_note with target_note=X and content=Y.
+- If user says "show my notes", "list notes", or "search notes for tag X", call list_notes.
+
+Retraction & Negation Rules:
+- CRITICAL DISTINCTION:
+  1. USER ABORTED ACTION: If the user begins to ask for a task/reminder, but cancels or aborts it mid-message (e.g. "make a todo about sending mail then cancel the task", "remind me to buy groceries... actually forget it", "schedule meeting then cancel it"), you MUST call retract_command! DO NOT call create_task!
+  2. ACTIONABLE CANCELLATION: If the task itself is to cancel an external item, subscription, or appointment (e.g. "make a todo to cancel the subscription", "remind me to cancel Netflix tomorrow", "cancel dentist appointment"), you MUST call create_task with title="Cancel subscription" (or drop_task if cancelling an existing open task).
+
+Intent Disambiguation Rules:
+- If a message is a single ambiguous noun phrase with no clear verb or date (e.g. "morning run", "drink water", "DSA practice"), call ask_clarification with disambiguation_type='TASK_OR_NOTE_OR_HABIT', pending_title='<title>', and question='Would you like to track this as a To-Do Task, a Daily Habit, or a Note?'.
 
 To-Do Lists & Categories Rules:
 - If user says "add X to my Y list" or "add X to Y tasks" (e.g. "add milk to my shopping list", "add finish report to work tasks"), call create_task with title=X and category=Y.

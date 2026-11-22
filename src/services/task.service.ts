@@ -139,22 +139,118 @@ export class TaskService {
     }
   }
 
-  async saveNote(userId: string, content: string, title?: string | null, url?: string | null, sourceMessageId?: number | null): Promise<TaskResult> {
+  async saveNote(
+    userId: string,
+    content: string,
+    title?: string | null,
+    tagsOrUrl?: string[] | string | null,
+    url?: string | null,
+    sourceMessageId?: number | null
+  ): Promise<TaskResult> {
+    let cleanTags: string[] = [];
+    let finalUrl = url;
+
+    if (Array.isArray(tagsOrUrl)) {
+      cleanTags = tagsOrUrl.map((t) => t.trim().toLowerCase());
+    } else if (typeof tagsOrUrl === 'string') {
+      finalUrl = tagsOrUrl;
+    }
+
     const res = await pool.query(
       `
-      INSERT INTO notes (user_id, title, content, url, source_message_id)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, title, content;
+      INSERT INTO notes (user_id, title, content, tags, url, source_message_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, title, content, tags;
       `,
-      [userId, title || null, content.trim(), url || null, sourceMessageId || null]
+      [userId, title || null, content.trim(), cleanTags, finalUrl || null, sourceMessageId || null]
     );
 
     const noteId = String(res.rows[0].id);
+    let reply = `📌 <b>Saved Note:</b> ${title || content.slice(0, 60)}`;
+    if (cleanTags.length > 0) {
+      reply += `\n🏷️ <b>Tags:</b> ${cleanTags.map((t) => `#${t}`).join(' ')}`;
+    }
 
     return {
-      text: `📌 <b>Saved Note:</b> ${title || content.slice(0, 60)}`,
+      text: reply,
       taskId: noteId,
     };
+  }
+
+  async appendNote(
+    userId: string,
+    targetHint: string,
+    addition: string
+  ): Promise<{ text: string; noteId?: string }> {
+    const cleanHint = targetHint.trim();
+    const matchRes = await pool.query(
+      `
+      SELECT id, title, content, tags
+      FROM notes
+      WHERE user_id = $1 AND (title ILIKE $2 OR content ILIKE $2)
+      ORDER BY similarity(coalesce(title, ''), $3) DESC, created_at DESC
+      LIMIT 1;
+      `,
+      [userId, `%${cleanHint}%`, cleanHint]
+    );
+
+    if (matchRes.rowCount === 0) {
+      const created = await this.saveNote(userId, addition, cleanHint);
+      return {
+        text: `📝 Couldn't find existing note matching "${cleanHint}", so I created a new one:\n\n${created.text}`,
+        noteId: created.taskId,
+      };
+    }
+
+    const note = matchRes.rows[0];
+    const timestamp = DateTime.now().toFormat('dd LLL, hh:mm a');
+    const updatedContent = `${note.content}\n\n--- [Added ${timestamp}] ---\n${addition.trim()}`;
+
+    await pool.query(
+      `UPDATE notes SET content = $2, updated_at = now() WHERE id = $1`,
+      [note.id, updatedContent]
+    );
+
+    return {
+      text: `📝 <b>Appended to Note:</b> <i>"${note.title || cleanHint}"</i>\n\n${addition.trim()}`,
+      noteId: String(note.id),
+    };
+  }
+
+  async listNotes(userId: string, tag?: string | null, limit = 10): Promise<{ text: string }> {
+    let query = `SELECT id, title, content, tags, created_at FROM notes WHERE user_id = $1`;
+    const params: any[] = [userId];
+
+    if (tag) {
+      params.push(tag.trim().toLowerCase());
+      query += ` AND $${params.length} = ANY(tags)`;
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
+    params.push(limit);
+
+    const res = await pool.query(query, params);
+
+    if (res.rowCount === 0) {
+      return {
+        text: tag
+          ? `📌 No notes found tagged with <b>#${tag}</b>.`
+          : `📌 <b>Your Notes:</b>\n\nYou don't have any notes yet! Tell me "save this to my notes: [idea]" to create one.`,
+      };
+    }
+
+    let text = tag ? `📌 <b>Notes tagged #${tag} (${res.rowCount}):</b>\n\n` : `📌 <b>Your Recent Notes (${res.rowCount}):</b>\n\n`;
+
+    for (const r of res.rows) {
+      const snippet = r.content.length > 80 ? r.content.slice(0, 80) + '...' : r.content;
+      text += `• <b>${r.title || 'Untitled'}</b>\n  <i>${snippet}</i>\n`;
+      if (r.tags && r.tags.length > 0) {
+        text += `  🏷️ ${r.tags.map((t: string) => `#${t}`).join(' ')}\n`;
+      }
+      text += `\n`;
+    }
+
+    return { text: text.trim() };
   }
 
   async completeTask(userId: string, taskId?: number | string | null, textHint?: string | null): Promise<TaskResult> {
