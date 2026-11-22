@@ -503,6 +503,52 @@ export class LlmService {
       {
         type: 'function',
         function: {
+          name: 'upload_cloud_file',
+          description:
+            'Save or upload a file to cloud storage (e.g. "save report.pdf to Google Drive", "upload invoice to OneDrive /Finance").',
+          parameters: {
+            type: 'object',
+            properties: {
+              file_name: { type: 'string', description: 'Name of the file' },
+              provider: { type: 'string', enum: ['GOOGLE_DRIVE', 'ONEDRIVE'], description: 'Target cloud drive' },
+              folder_path: { type: 'string', description: 'Destination folder path (e.g. /Work, /Invoices)' },
+            },
+            required: ['file_name'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'search_cloud_files',
+          description: 'Search files across Google Drive or OneDrive (e.g. "find resume in my drive", "search files for pitch deck").',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'File name keyword or tag to search for' },
+              provider: { type: 'string', enum: ['GOOGLE_DRIVE', 'ONEDRIVE', 'ALL'], description: 'Cloud provider' },
+            },
+            required: ['query'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'list_cloud_files',
+          description: 'List files in cloud drive storage (e.g. "show my drive files", "list files in /FewFeww").',
+          parameters: {
+            type: 'object',
+            properties: {
+              folder_path: { type: 'string', description: 'Optional folder path (defaults to /FewFeww)' },
+              provider: { type: 'string', enum: ['GOOGLE_DRIVE', 'ONEDRIVE', 'ALL'] },
+            },
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'out_of_scope',
           description: 'Call when message is conversational chit-chat, a joke, or completely unrelated to personal tasks/notes.',
           parameters: {

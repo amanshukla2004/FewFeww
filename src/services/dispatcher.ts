@@ -17,6 +17,7 @@ import { contactService } from './contact.service.js';
 import { circleService } from './circle.service.js';
 import { calendarService } from './calendar.service.js';
 import { emailService } from './email.service.js';
+import { driveService } from './drive.service.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -157,6 +158,21 @@ export class UpdateDispatcher {
     let text = (msg.text || '').trim();
 
     const { user } = await userRepo.findOrCreate(from.id, chatId, from.first_name, from.language_code);
+
+    // Handle Document / File Forwarding to Cloud Drive
+    const doc = msg.document;
+    if (doc?.file_id && !text) {
+      const fileName = doc.file_name || 'document';
+      const res = await driveService.uploadFile({
+        userId: user.id,
+        fileName,
+        mimeType: doc.mime_type,
+        fileSize: doc.file_size,
+        provider: 'GOOGLE_DRIVE',
+      });
+      await this.sendBotMessage(user.id, chatId, res.formattedText);
+      return;
+    }
 
     // Handle Voice Notes & Audio Transcriptions (Groq Whisper large-v3)
     const voice = msg.voice || msg.audio;
@@ -634,6 +650,37 @@ export class UpdateDispatcher {
       case 'list_email_drafts': {
         const res = await emailService.listDrafts(user.id);
         await this.sendBotMessage(user.id, chatId, res.text);
+        break;
+      }
+
+      case 'upload_cloud_file': {
+        const res = await driveService.uploadFile({
+          userId: user.id,
+          fileName: call.args.file_name,
+          provider: call.args.provider,
+          folderPath: call.args.folder_path,
+        });
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'search_cloud_files': {
+        const res = await driveService.searchFiles(
+          user.id,
+          call.args.query,
+          call.args.provider || 'ALL'
+        );
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'list_cloud_files': {
+        const res = await driveService.listFiles(
+          user.id,
+          call.args.folder_path || '/FewFeww',
+          call.args.provider || 'ALL'
+        );
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
         break;
       }
 
