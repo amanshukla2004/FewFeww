@@ -5,6 +5,7 @@ import { config } from './config.js';
 import { healthRoutes } from './routes/health.js';
 import { webhookRoutes } from './routes/webhook.js';
 import { whatsappRoutes } from './routes/whatsapp.js';
+import { dashboardRoutes } from './routes/dashboard.js';
 
 export function buildServer() {
   const app = Fastify({
@@ -25,6 +26,9 @@ export function buildServer() {
 
   // Register WhatsApp Webhook Gateway Route
   app.register(whatsappRoutes);
+
+  // Register Interactive Web Dashboard Route
+  app.register(dashboardRoutes);
 
   return app;
 }
