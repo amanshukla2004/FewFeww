@@ -255,6 +255,53 @@ export class LlmService {
       {
         type: 'function',
         function: {
+          name: 'log_habit',
+          description:
+            'Log a habit, measurement, workout, or quantitative metric (e.g. "today my weight is 90", "did 5 lc today", "drank 2L water", "read 25 pages", "workout 45 mins").',
+          parameters: {
+            type: 'object',
+            properties: {
+              habit_name: {
+                type: 'string',
+                description: 'Name of the habit or metric (e.g. "Weight", "LeetCode", "Water", "Reading", "Workout")',
+              },
+              value: {
+                type: 'number',
+                description: 'Numeric measurement or count (e.g. 90, 5, 2, 25, 45)',
+              },
+              unit: {
+                type: 'string',
+                description: 'Optional unit of measurement (e.g. "kg", "problems", "liters", "pages", "mins")',
+              },
+              notes: {
+                type: 'string',
+                description: 'Optional extra note or detail',
+              },
+            },
+            required: ['habit_name', 'value'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'view_habits',
+          description:
+            'View tracked habits, stats, and recent progress or measurements (e.g. "show my weight history", "show my habits", "how many leetcode problems did I do").',
+          parameters: {
+            type: 'object',
+            properties: {
+              habit_name: {
+                type: 'string',
+                description: 'Optional specific habit to view stats for',
+              },
+            },
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'out_of_scope',
           description: 'Call when message is conversational chit-chat, a joke, or completely unrelated to personal tasks/notes.',
           parameters: {
@@ -297,6 +344,10 @@ Conversation Memory & Context Rules:
 - If the assistant previously asked for a time or detail (e.g. "What time each day should I remind you about DSA questions?"), and the user replies with a time (e.g. "10 AM") or confirmation, DO NOT ask for clarification again! Execute create_task immediately with the task title from the prior turn, the time from this turn, and appropriate recurrence (e.g. DAILY).
 - If the user says "reminder", "task", "i told you about this", or refers to earlier messages, look at the message history to fulfill their request. Never call out_of_scope when the user is trying to set up or manage tasks.
 - Avoid repeated clarification questions. If enough information exists across turns to create a task, execute create_task!
+
+Habit & Metric Tracking Rules:
+- If the user states a personal measurement, daily count, or habit progress (e.g. "today my weight is 90", "did 5 lc today", "drank 3 liters water", "read 30 pages", "ran 5km"), call log_habit with habit_name, value, and unit.
+- If user asks for their habit stats or history (e.g. "show my habits", "show weight history", "how many leetcode problems did i solve"), call view_habits.
 
 Notes Rules:
 - If user says "save this to my notes: X", "add to notes: X", or gives an idea/quote, call save_note with content=X, a concise title, and 1-3 relevant tags.

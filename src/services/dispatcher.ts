@@ -11,6 +11,7 @@ import { morningDigest } from './morning.digest.js';
 import { resilienceService } from './resilience.service.js';
 import { dateResolver } from './date.resolver.js';
 import { listService } from './list.service.js';
+import { habitService } from './habit.service.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -400,6 +401,24 @@ export class UpdateDispatcher {
           chatId,
           `👌 Cancelled. I did not create that task${item}.`
         );
+        break;
+      }
+
+      case 'log_habit': {
+        const res = await habitService.logHabit({
+          userId: user.id,
+          habitName: call.args.habit_name,
+          value: Number(call.args.value),
+          unit: call.args.unit,
+          notes: call.args.notes,
+        });
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'view_habits': {
+        const res = await habitService.formatHabitStats(user.id, call.args.habit_name);
+        await this.sendBotMessage(user.id, chatId, res.text);
         break;
       }
 

@@ -4,6 +4,7 @@ import { telegram, TelegramClient } from './telegram.client.js';
 import { nudgeService } from './nudge.service.js';
 import { privacyService } from './privacy.service.js';
 import { taskService } from './task.service.js';
+import { habitService } from './habit.service.js';
 import { DateTime } from 'luxon';
 
 export class CallbackRouter {
@@ -108,7 +109,12 @@ export class CallbackRouter {
       const res = await taskService.saveNote(user.id, cleanTitle, cleanTitle);
       reply = res.text;
     } else if (kind === 'habit') {
-      reply = `📊 <b>Tracking Habit:</b> <i>"${cleanTitle}"</i>\n\nI'll track your daily progress and show your consistency graphs on your dashboard!`;
+      const res = await habitService.logHabit({
+        userId: user.id,
+        habitName: cleanTitle,
+        value: 1,
+      });
+      reply = res.formattedText;
     }
 
     if (messageId) {
