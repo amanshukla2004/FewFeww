@@ -589,7 +589,8 @@ export class UpdateDispatcher {
         const res = await calendarService.listEvents(
           user.id,
           user.timezone,
-          call.args.timeframe || 'WEEK'
+          call.args.timeframe || 'WEEK',
+          call.args.provider || 'ALL'
         );
         await this.sendBotMessage(user.id, chatId, res.formattedText);
         break;

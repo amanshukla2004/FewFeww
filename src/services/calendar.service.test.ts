@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { DateTime } from 'luxon';
 import { calendarService } from './calendar.service.js';
 import { commandRouter } from './command.router.js';
 import { UpdateDispatcher } from './dispatcher.js';
@@ -61,12 +62,12 @@ describe('Google Calendar & Meet Sync (Step 23)', () => {
     expect(emptyRes.formattedText).toContain('No events scheduled');
 
     // Add an event for today
-    const nowIso = new Date().toISOString();
+    const startLocal = DateTime.now().setZone('Asia/Kolkata').plus({ hours: 1 }).toISO()!.slice(0, 19);
     await calendarService.createEvent({
       userId: testUserId,
       title: 'Daily Standup',
       userTimezone: 'Asia/Kolkata',
-      startLocal: nowIso.slice(0, 19),
+      startLocal,
     });
 
     const populatedRes = await calendarService.listEvents(testUserId, 'Asia/Kolkata', 'WEEK');

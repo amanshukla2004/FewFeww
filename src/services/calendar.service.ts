@@ -65,13 +65,18 @@ export class CalendarService {
       .map((a) => a.trim().toLowerCase())
       .filter((a) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a));
 
-    // Generate Google Meet URL if requested
+    // Generate meeting URL if requested
     let meetUrl: string | null = null;
-    if (input.generateMeet || provider === 'GOOGLE') {
-      const p1 = crypto.randomBytes(2).toString('hex').slice(0, 3);
-      const p2 = crypto.randomBytes(2).toString('hex').slice(0, 4);
-      const p3 = crypto.randomBytes(2).toString('hex').slice(0, 3);
-      meetUrl = `https://meet.google.com/${p1}-${p2}-${p3}`;
+    if (input.generateMeet || provider === 'GOOGLE' || provider === 'OUTLOOK') {
+      if (provider === 'OUTLOOK') {
+        const threadId = crypto.randomBytes(16).toString('hex');
+        meetUrl = `https://teams.microsoft.com/l/meetup-join/19%3ameeting_${threadId}%40thread.v2/0`;
+      } else {
+        const p1 = crypto.randomBytes(2).toString('hex').slice(0, 3);
+        const p2 = crypto.randomBytes(2).toString('hex').slice(0, 4);
+        const p3 = crypto.randomBytes(2).toString('hex').slice(0, 3);
+        meetUrl = `https://meet.google.com/${p1}-${p2}-${p3}`;
+      }
     }
 
     const res = await pool.query(
@@ -116,9 +121,10 @@ export class CalendarService {
     const timeRange = `${startDt.toFormat('hh:mm a')} – ${endDt.toFormat('hh:mm a')}`;
 
     let details = '';
+    const meetLabel = provider === 'OUTLOOK' ? 'Microsoft Teams' : 'Google Meet';
     if (event.location) details += `\n📍 <b>Location:</b> ${event.location}`;
     if (event.attendees.length > 0) details += `\n👥 <b>Attendees:</b> ${event.attendees.join(', ')}`;
-    if (event.meetUrl) details += `\n📹 <b>Google Meet:</b> <a href="${event.meetUrl}">${event.meetUrl}</a>`;
+    if (event.meetUrl) details += `\n📹 <b>${meetLabel}:</b> <a href="${event.meetUrl}">${event.meetUrl}</a>`;
     if (event.description) details += `\n📝 <b>Notes:</b> ${event.description}`;
 
     const formattedText =
@@ -137,7 +143,8 @@ export class CalendarService {
   async listEvents(
     userId: string,
     userTimezone = 'Asia/Kolkata',
-    timeframe: 'TODAY' | 'TOMORROW' | 'WEEK' = 'WEEK'
+    timeframe: 'TODAY' | 'TOMORROW' | 'WEEK' = 'WEEK',
+    provider: 'GOOGLE' | 'OUTLOOK' | 'ALL' = 'ALL'
   ): Promise<{ events: CalendarEvent[]; formattedText: string }> {
     const zone = userTimezone;
     const now = DateTime.now().setZone(zone);
@@ -156,16 +163,22 @@ export class CalendarService {
       endRange = now.plus({ days: 7 }).endOf('day');
     }
 
-    const res = await pool.query(
-      `
+    let query = `
       SELECT id, user_id, provider, title, description, location,
              start_time, end_time, attendees, meet_url, created_at
       FROM calendar_events
       WHERE user_id = $1 AND start_time >= $2 AND start_time <= $3
-      ORDER BY start_time ASC;
-      `,
-      [userId, startRange.toUTC().toJSDate(), endRange.toUTC().toJSDate()]
-    );
+    `;
+    const params: any[] = [userId, startRange.toUTC().toJSDate(), endRange.toUTC().toJSDate()];
+
+    if (provider && provider !== 'ALL') {
+      params.push(provider);
+      query += ` AND provider = $4`;
+    }
+
+    query += ` ORDER BY start_time ASC;`;
+
+    const res = await pool.query(query, params);
 
     const events: CalendarEvent[] = res.rows.map((r) => ({
       id: String(r.id),
@@ -192,7 +205,7 @@ export class CalendarService {
     for (const ev of events) {
       const s = DateTime.fromJSDate(ev.startTime).setZone(zone);
       const e = DateTime.fromJSDate(ev.endTime).setZone(zone);
-      text += `• <b>${ev.title}</b> [${ev.provider === 'GOOGLE' ? 'Google' : 'Outlook'}]\n`;
+      text += `• <b>${ev.title}</b> [${ev.provider === 'GOOGLE' ? 'Google Calendar' : 'Outlook Calendar'}]\n`;
       text += `  ⏰ ${s.toFormat('ccc, LLL dd • hh:mm a')} – ${e.toFormat('hh:mm a')}\n`;
       if (ev.location) text += `  📍 ${ev.location}\n`;
       if (ev.meetUrl) text += `  📹 ${ev.meetUrl}\n`;

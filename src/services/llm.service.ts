@@ -437,14 +437,19 @@ export class LlmService {
         function: {
           name: 'view_calendar',
           description:
-            'View scheduled appointments and events from Google/Outlook calendar (e.g. "show my calendar for today", "what\'s on my schedule tomorrow", "list my calendar events for next week").',
+            'View scheduled appointments and events from Google/Outlook calendar (e.g. "show my calendar for today", "what\'s on my schedule tomorrow", "list my calendar events for next week", "show my Outlook calendar").',
           parameters: {
             type: 'object',
             properties: {
               timeframe: {
                 type: 'string',
                 enum: ['TODAY', 'TOMORROW', 'WEEK'],
-                description: 'Timeframe to view events for',
+                description: 'Timeframe to view events for (defaults to WEEK)',
+              },
+              provider: {
+                type: 'string',
+                enum: ['GOOGLE', 'OUTLOOK', 'ALL'],
+                description: 'Optional calendar provider filter',
               },
             },
           },
