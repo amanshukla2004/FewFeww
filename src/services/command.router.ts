@@ -3,6 +3,7 @@ import { onboardingService } from './onboarding.service.js';
 import { TelegramButton } from './telegram.client.js';
 import { morningDigest } from './morning.digest.js';
 import { privacyService } from './privacy.service.js';
+import { contactService } from './contact.service.js';
 
 export interface CommandResponse {
   text: string;
@@ -61,6 +62,11 @@ export class CommandRouter {
             ],
           ],
         };
+
+      case '/contacts': {
+        const res = await contactService.listContacts(user.id);
+        return { text: res.formattedText };
+      }
 
       case '/settings':
         return {

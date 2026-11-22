@@ -13,6 +13,7 @@ import { dateResolver } from './date.resolver.js';
 import { listService } from './list.service.js';
 import { habitService } from './habit.service.js';
 import { audioService } from './audio.service.js';
+import { contactService } from './contact.service.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -502,6 +503,42 @@ export class UpdateDispatcher {
           chatId,
           `🌐 <b>Language Updated!</b>\n\nI will now reply in <b>${lang}</b>. You can continue sending messages in any language!`
         );
+        break;
+      }
+
+      case 'add_contact': {
+        const res = await contactService.addContact({
+          userId: user.id,
+          name: call.args.name,
+          phone: call.args.phone,
+          email: call.args.email,
+          telegramUsername: call.args.telegram_username,
+        });
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'list_contacts': {
+        const res = await contactService.listContacts(user.id);
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'search_contacts': {
+        const c = await contactService.findContact(user.id, call.args.query);
+        if (!c) {
+          await this.sendBotMessage(
+            user.id,
+            chatId,
+            `🔍 <b>Contact Not Found:</b> No contact found matching <i>"${call.args.query}"</i>.`
+          );
+        } else {
+          let details = '';
+          if (c.phone) details += `\n📞 <b>Phone:</b> <code>${c.phone}</code>`;
+          if (c.email) details += `\n✉️ <b>Email:</b> ${c.email}`;
+          if (c.telegramUsername) details += `\n💬 <b>Telegram:</b> @${c.telegramUsername}`;
+          await this.sendBotMessage(user.id, chatId, `👤 <b>${c.name}</b>${details}`);
+        }
         break;
       }
 

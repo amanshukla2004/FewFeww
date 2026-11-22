@@ -320,6 +320,49 @@ export class LlmService {
       {
         type: 'function',
         function: {
+          name: 'add_contact',
+          description:
+            'Add or save a person to contacts (e.g. "add John to contacts with phone 9876543210", "save contact Sarah sarah@work.com", "add Yash to contacts @yashdev").',
+          parameters: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Name of the contact' },
+              phone: { type: 'string', description: 'Optional phone number' },
+              email: { type: 'string', description: 'Optional email address' },
+              telegram_username: { type: 'string', description: 'Optional Telegram username (with or without @)' },
+            },
+            required: ['name'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'list_contacts',
+          description: 'List or show all saved contacts (e.g. "show my contacts", "list contacts").',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'search_contacts',
+          description: 'Search for a contact details (e.g. "what is John\'s phone number", "find contact Sarah").',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Name or keyword to search for' },
+            },
+            required: ['query'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'out_of_scope',
           description: 'Call when message is conversational chit-chat, a joke, or completely unrelated to personal tasks/notes.',
           parameters: {
@@ -397,6 +440,11 @@ To-Do Lists & Categories Rules:
 - If user says "show my todos", "list my todos", or "show my lists", call view_lists without category.
 - If user says "show my X todos" or "list items in my X list", call view_lists with category=X.
 - If user says "complete all X todos", call complete_list with category=X.
+
+Contact Management Rules:
+- If user says "add X to my contacts" or "save contact X" with phone/email/telegram (e.g. "add John to contacts with phone 9876543210", "save contact Sarah sarah@work.com", "add Yash to contacts @yashdev"), call add_contact.
+- If user says "show my contacts", "list my contacts", or "view contacts", call list_contacts.
+- If user asks for a contact's details or info (e.g. "what is John's phone number", "find contact Sarah"), call search_contacts.
 
 If the user explicitly asks to schedule or set an appointment or reminder for a task, but specifies NO date and NO time at all (e.g. "schedule dentist appointment", "remind me to pay bills"), call ask_clarification with reason='missing_schedule_time', pending_title='<Task Title>', and question='When would you like to schedule this? (e.g. "tomorrow 3pm" or "Friday")'.
 If the user simply states an item without scheduling verbs (e.g. "buy milk", "read book"), use create_task without a due date.
