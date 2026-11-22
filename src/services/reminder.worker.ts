@@ -3,6 +3,7 @@ import { userRepo } from '../db/user.repo.js';
 import { telegram, TelegramClient, TelegramButton } from './telegram.client.js';
 import { nudgePolicy, ReminderRecord } from './nudge.policy.js';
 import { nudgeService } from './nudge.service.js';
+import { resilienceService } from './resilience.service.js';
 
 export class ReminderWorker {
   private timer: NodeJS.Timeout | null = null;
@@ -170,6 +171,13 @@ export class ReminderWorker {
       }
     } catch (err: any) {
       console.error(`[ReminderWorker] Failed processing reminder #${r.id}:`, err);
+
+      // Handle user blocked the bot (HTTP 403 Forbidden)
+      if (err?.message?.includes('403') || err?.message?.includes('bot was blocked by the user')) {
+        await resilienceService.handleUserBlocked(r.user_id);
+        return;
+      }
+
       const backoffMin = this.backoffMinutes[Math.min(r.attempt_count - 1, this.backoffMinutes.length - 1)];
       const nextAttempt = new Date(Date.now() + backoffMin * 60 * 1000);
 

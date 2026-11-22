@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { pool } from './db/pool.js';
 import { reminderWorker } from './services/reminder.worker.js';
 import { morningDigest } from './services/morning.digest.js';
+import { resilienceService } from './services/resilience.service.js';
 
 async function start() {
   const app = buildServer();
@@ -18,6 +19,18 @@ async function start() {
     // Start Daily Morning Plan Poller (60s interval)
     morningDigest.start(60000);
 
+    // Start 1-Minute Stuck Job Reaper
+    const reaperInterval = setInterval(async () => {
+      try {
+        const { reapedReminders, reapedInbox } = await resilienceService.runReaperCycle();
+        if (reapedReminders > 0 || reapedInbox > 0) {
+          app.log.warn(`[StuckJobReaper] Reaped ${reapedReminders} reminders and ${reapedInbox} inbox updates`);
+        }
+      } catch (e) {
+        app.log.error(e, '[StuckJobReaper] Error running reaper cycle');
+      }
+    }, 60000);
+
     await app.listen({ port: config.port, host: '0.0.0.0' });
     console.log(`\n🚀 FewFeww Backend running on port ${config.port}`);
     console.log(`👉 Health check: http://localhost:${config.port}/health\n`);
@@ -31,6 +44,7 @@ async function start() {
   for (const sig of closeSignals) {
     process.on(sig, async () => {
       console.log(`\nReceived ${sig}, shutting down gracefully...`);
+      clearInterval(reaperInterval);
       reminderWorker.stop();
       morningDigest.stop();
       await app.close();

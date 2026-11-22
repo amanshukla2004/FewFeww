@@ -8,6 +8,7 @@ import { llmService } from './llm.service.js';
 import { callbackRouter } from './callback.router.js';
 import { searchService } from './search.service.js';
 import { morningDigest } from './morning.digest.js';
+import { resilienceService } from './resilience.service.js';
 import { pool } from '../db/pool.js';
 
 export class UpdateDispatcher {
@@ -120,6 +121,25 @@ export class UpdateDispatcher {
     if (user.onboarding_state !== 'ACTIVE') {
       const prompt = onboardingService.getPendingStepPrompt(user);
       await this.tg.sendMessage(chatId, prompt.text, prompt.keyboard);
+      return;
+    }
+
+    // 2.5 Rate Limit & Degraded Mode Safety Net
+    const rateCheck = resilienceService.checkRateLimit(user.id);
+    if (rateCheck.isLimited) {
+      await this.tg.sendMessage(
+        chatId,
+        `⚠️ <b>Rate Limit Exceeded</b>\nYou've sent too many messages in a short period. Please wait ${rateCheck.resetSeconds} seconds before sending another message.`
+      );
+      return;
+    }
+
+    if (resilienceService.degradedModeActive) {
+      await taskService.saveNote(user.id, text, 'Saved Thought', null, msg.message_id);
+      await this.tg.sendMessage(
+        chatId,
+        `📥 I've saved your thought to your inbox, but AI parsing is temporarily paused for maintenance.`
+      );
       return;
     }
 
