@@ -7,6 +7,7 @@ import { contactService } from './contact.service.js';
 import { circleService } from './circle.service.js';
 import { calendarService } from './calendar.service.js';
 import { momService } from './mom.service.js';
+import { dailySummaryService } from './daily.summary.service.js';
 
 export interface CommandResponse {
   text: string;
@@ -128,6 +129,11 @@ export class CommandRouter {
             ],
           ],
         };
+
+      case '/summary': {
+        const text = await dailySummaryService.buildSummary(user, 'INSTANT');
+        return { text };
+      }
 
       case '/today': {
         const text = await morningDigest.buildTodaySummary(user);

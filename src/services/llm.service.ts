@@ -584,6 +584,45 @@ export class LlmService {
       {
         type: 'function',
         function: {
+          name: 'configure_daily_summary',
+          description:
+            'Enable, disable, or adjust times for daily summaries and recaps (e.g. "enable daily summary", "disable daily summary", "change summary time to 8 PM", "send summary at 7:30 AM").',
+          parameters: {
+            type: 'object',
+            properties: {
+              enabled: { type: 'boolean', description: 'Whether to enable or disable the summary' },
+              morning_time: { type: 'string', description: 'Time for morning brief in 24hr HH:MM format (e.g. 07:30, 08:00)' },
+              evening_time: { type: 'string', description: 'Time for evening recap in 24hr HH:MM format (e.g. 20:00, 21:00)' },
+              summary_type: {
+                type: 'string',
+                enum: ['MORNING', 'EVENING', 'BOTH'],
+                description: 'Which summary to configure',
+              },
+            },
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'view_daily_summary',
+          description:
+            'Show or trigger an instant daily summary/recap of tasks, habits, and meetings (e.g. "show my daily summary", "what is on my summary today", "daily recap").',
+          parameters: {
+            type: 'object',
+            properties: {
+              mode: {
+                type: 'string',
+                enum: ['MORNING', 'EVENING', 'INSTANT'],
+                description: 'The summary mode to display',
+              },
+            },
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'out_of_scope',
           description: 'Call when message is conversational chit-chat, a joke, or completely unrelated to personal tasks/notes.',
           parameters: {

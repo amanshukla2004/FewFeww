@@ -21,6 +21,7 @@ import { driveService } from './drive.service.js';
 import { visionService } from './vision.service.js';
 import { momService } from './mom.service.js';
 import { textProcessor } from './text_processor.js';
+import { dailySummaryService } from './daily.summary.service.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -751,6 +752,23 @@ export class UpdateDispatcher {
           targetLanguage: call.args.target_language,
         });
         await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'configure_daily_summary': {
+        const res = await dailySummaryService.configure(user.id, {
+          enabled: call.args.enabled,
+          morningTime: call.args.morning_time,
+          eveningTime: call.args.evening_time,
+          summaryType: call.args.summary_type,
+        });
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'view_daily_summary': {
+        const text = await dailySummaryService.buildSummary(user, call.args.mode || 'INSTANT');
+        await this.sendBotMessage(user.id, chatId, text);
         break;
       }
 
