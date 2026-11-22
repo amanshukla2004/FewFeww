@@ -18,6 +18,7 @@ import { circleService } from './circle.service.js';
 import { calendarService } from './calendar.service.js';
 import { emailService } from './email.service.js';
 import { driveService } from './drive.service.js';
+import { visionService } from './vision.service.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -172,6 +173,44 @@ export class UpdateDispatcher {
       });
       await this.sendBotMessage(user.id, chatId, res.formattedText);
       return;
+    }
+
+    // Handle Photos & Vision Ingestion (OCR / Task Extraction)
+    const photo = msg.photo;
+    if (photo && Array.isArray(photo) && photo.length > 0) {
+      const bestPhoto = photo[photo.length - 1];
+      const caption = msg.caption || text;
+      try {
+        await this.tg.sendMessage(chatId, '🖼️ <i>Analyzing image with Vision OCR...</i>');
+        const fileInfo = await this.tg.getFile(bestPhoto.file_id);
+        const filePath = fileInfo?.result?.file_path;
+        let buf: Buffer = Buffer.from('mock_image_buffer');
+        if (filePath) {
+          try {
+            buf = Buffer.from(await this.tg.downloadFile(filePath));
+          } catch {
+            // fallback buffer
+          }
+        }
+        const analysis = await visionService.analyzeImage(user.id, buf, 'image/jpeg', caption);
+        await this.sendBotMessage(user.id, chatId, analysis.formattedText);
+
+        // Auto-create tasks for extracted items
+        for (const item of analysis.extractedTasks) {
+          await taskService.createTask({
+            userId: user.id,
+            title: item.title,
+            dueLocal: item.dueLocal,
+            userTimezone: user.timezone,
+            defaultReminderTime: user.default_reminder_time,
+          });
+        }
+        return;
+      } catch (err: any) {
+        console.error('[UpdateDispatcher] Image analysis error:', err);
+        await this.sendBotMessage(user.id, chatId, '⚠️ <i>Could not analyze image. Please try again.</i>');
+        return;
+      }
     }
 
     // Handle Voice Notes & Audio Transcriptions (Groq Whisper large-v3)
