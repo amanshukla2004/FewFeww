@@ -12,6 +12,7 @@ import { resilienceService } from './resilience.service.js';
 import { dateResolver } from './date.resolver.js';
 import { listService } from './list.service.js';
 import { habitService } from './habit.service.js';
+import { audioService } from './audio.service.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -149,15 +150,47 @@ export class UpdateDispatcher {
   private async handleMessage(msg: any): Promise<void> {
     const from = msg.from;
     const chatId = msg.chat?.id || from.id;
-    const text = (msg.text || '').trim();
+    let text = (msg.text || '').trim();
 
     const { user } = await userRepo.findOrCreate(from.id, chatId, from.first_name, from.language_code);
+
+    // Handle Voice Notes & Audio Transcriptions (Groq Whisper large-v3)
+    const voice = msg.voice || msg.audio;
+    if (voice?.file_id && !text) {
+      try {
+        await this.tg.sendMessage(chatId, '🎙️ <i>Transcribing your voice note...</i>');
+        const fileInfo = await this.tg.getFile(voice.file_id);
+        const filePath = fileInfo?.result?.file_path;
+        if (filePath) {
+          const audioBuf = await this.tg.downloadFile(filePath);
+          const mime = voice.mime_type || (msg.voice ? 'audio/ogg' : 'audio/mpeg');
+          const ext = msg.voice ? 'voice.ogg' : 'audio.mp3';
+          const transcription = await audioService.transcribeAudio(audioBuf, mime, ext);
+          text = transcription.text;
+          if (text) {
+            await this.sendBotMessage(user.id, chatId, `🗣️ <i>"${text}"</i>`);
+          }
+        }
+      } catch (err: any) {
+        console.error('[UpdateDispatcher] Voice transcription error:', err);
+        await this.sendBotMessage(
+          user.id,
+          chatId,
+          '⚠️ <i>Sorry, I had trouble transcribing that voice note. Please try speaking closer to your mic or send as text.</i>'
+        );
+        return;
+      }
+    }
+
+    if (!text) {
+      return;
+    }
 
     // Fetch conversation history BEFORE logging the current message to prevent duplication
     const messageHistory = await this.getRecentMessageHistory(user.id, 8);
 
     // Save inbound message log
-    const dbMessageId = await this.logMessage(user.id, 'INBOUND', msg.message_id, 'TEXT', text);
+    const dbMessageId = await this.logMessage(user.id, 'INBOUND', msg.message_id, voice ? 'VOICE' : 'TEXT', text);
 
     // 1. Command Routing (e.g. /start, /help, /settings)
     if (text.startsWith('/')) {

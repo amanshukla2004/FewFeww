@@ -378,6 +378,7 @@ Habit & Metric Tracking Rules:
 - If user asks for their habit stats or history (e.g. "show my habits", "show weight history", "how many leetcode problems did i solve"), call view_habits.
 
 Notes Rules:
+- For links, bookmarks, articles, or unstructured thoughts without a deadline or scheduling action (e.g. "Great article on distributed databases https://martin.kleppmann.com", "bookmark this site"), call save_note with the content and url.
 - If user says "save this to my notes: X", "add to notes: X", or gives an idea/quote, call save_note with content=X, a concise title, and 1-3 relevant tags.
 - If user says "add this to my X note" or "append Y to my X note", call append_note with target_note=X and content=Y.
 - If user says "show my notes", "list notes", or "search notes for tag X", call list_notes.

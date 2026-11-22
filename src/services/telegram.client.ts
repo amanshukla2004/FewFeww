@@ -7,8 +7,10 @@ export interface TelegramButton {
 
 export class TelegramClient {
   private baseUrl: string;
+  private token: string;
 
   constructor(token: string = config.telegram.botToken) {
+    this.token = token;
     this.baseUrl = `https://api.telegram.org/bot${token}`;
   }
 
@@ -46,6 +48,21 @@ export class TelegramClient {
       callback_query_id: callbackQueryId,
       text,
     });
+  }
+
+  async getFile(fileId: string): Promise<{ ok: boolean; result?: { file_id: string; file_path?: string; file_size?: number } }> {
+    return this.post('getFile', { file_id: fileId });
+  }
+
+  async downloadFile(filePath: string): Promise<Buffer> {
+    const url = `https://api.telegram.org/file/bot${this.token}/${filePath}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Telegram API Error [downloadFile]: ${res.status} ${err}`);
+    }
+    const arrayBuffer = await res.arrayBuffer();
+    return Buffer.from(arrayBuffer);
   }
 
   async sendDocument(
