@@ -2,6 +2,7 @@ import { pool } from '../db/pool.js';
 import { userRepo } from '../db/user.repo.js';
 import { telegram, TelegramClient, TelegramButton } from './telegram.client.js';
 import { nudgePolicy, ReminderRecord } from './nudge.policy.js';
+import { nudgeService } from './nudge.service.js';
 
 export class ReminderWorker {
   private timer: NodeJS.Timeout | null = null;
@@ -95,13 +96,8 @@ export class ReminderWorker {
       const taskRes = await pool.query(`SELECT title FROM tasks WHERE id = $1`, [r.task_id]);
       const taskTitle = taskRes.rows[0]?.title || 'Your scheduled task';
 
-      const text =
-        r.nudge_stage === 0
-          ? `⏰ <b>Reminder:</b> ${taskTitle}`
-          : `💬 <b>Follow-up:</b> Still planning to do <i>"${taskTitle}"</i>?`;
-
-      // Inline action buttons (< 64 bytes callback payloads)
-      const keyboard: TelegramButton[][] = [
+      let text = `⏰ <b>Reminder:</b> ${taskTitle}`;
+      let keyboard: TelegramButton[][] = [
         [
           { text: '✅ Done', callback_data: `r:done:${r.id}` },
           { text: '⏳ 1 Hour', callback_data: `r:snz1:${r.id}` },
@@ -111,6 +107,34 @@ export class ReminderWorker {
           { text: '🗑 Drop', callback_data: `r:drop:${r.id}` },
         ],
       ];
+
+      if (r.nudge_stage === 1) {
+        text = `💬 <b>Follow-up:</b> Still planning to do <i>"${taskTitle}"</i>?`;
+        keyboard = [
+          [
+            { text: '✅ Done', callback_data: `r:done:${r.id}` },
+            { text: '☀️ Tomorrow', callback_data: `r:tom:${r.id}` },
+          ],
+          [{ text: '🗑 Drop', callback_data: `r:drop:${r.id}` }],
+        ];
+      } else if (r.nudge_stage === 3) {
+        text = `⚠️ <b>3-Day Check-in:</b> <i>"${taskTitle}"</i> has been open for 3 days. Reschedule or drop?`;
+        keyboard = [
+          [
+            { text: '☀️ Tomorrow', callback_data: `r:tom:${r.id}` },
+            { text: '🗑 Drop', callback_data: `r:drop:${r.id}` },
+          ],
+          [{ text: '👌 Keep', callback_data: `r:keep:${r.id}` }],
+        ];
+      } else if (r.nudge_stage === 4) {
+        text = `📦 <b>Archive Suggestion:</b> <i>"${taskTitle}"</i> has been open for 7 days. Want me to archive this task?`;
+        keyboard = [
+          [
+            { text: '🗑 Archive/Drop', callback_data: `r:drop:${r.id}` },
+            { text: '👌 Keep', callback_data: `r:keep:${r.id}` },
+          ],
+        ];
+      }
 
       // Send to Telegram
       const sendRes = await this.tg.sendMessage(user.telegram_chat_id, text, keyboard);
@@ -137,17 +161,8 @@ export class ReminderWorker {
           [r.user_id, r.id, JSON.stringify({ nudge_stage: r.nudge_stage, kind: r.kind })]
         );
 
-        // Schedule Stage 1 Nudge if this was Stage 0
-        if (r.nudge_stage === 0) {
-          const stage1FireAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // +2 hours
-          await client.query(
-            `
-            INSERT INTO reminders (user_id, task_id, kind, nudge_stage, fire_at, status)
-            VALUES ($1, $2, 'NUDGE', 1, $3, 'SCHEDULED')
-            `,
-            [r.user_id, r.task_id, stage1FireAt]
-          );
-        }
+        // Schedule next stage in Nudge Ladder
+        await nudgeService.scheduleNextStage(r);
 
         await client.query('COMMIT');
       } finally {

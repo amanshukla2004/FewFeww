@@ -5,6 +5,7 @@ import { onboardingService } from './onboarding.service.js';
 import { commandRouter } from './command.router.js';
 import { taskService } from './task.service.js';
 import { llmService } from './llm.service.js';
+import { callbackRouter } from './callback.router.js';
 import { pool } from '../db/pool.js';
 
 export class UpdateDispatcher {
@@ -92,7 +93,8 @@ export class UpdateDispatcher {
       return;
     }
 
-    // Settings & Other Callbacks will be handled in later steps
+    // Route Reminder, Nudge, and Setting Callbacks
+    await callbackRouter.handleCallback(cq);
   }
 
   private async handleMessage(msg: any): Promise<void> {

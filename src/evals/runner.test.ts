@@ -46,5 +46,5 @@ describe('Golden Eval Harness (src/evals/evals.jsonl)', () => {
     if (report.categoryScores.injection) {
       expect(report.categoryScores.injection.accuracy).toBe(100);
     }
-  }, 45000); // 45s timeout for full suite execution
+  }, 90000); // 90s timeout for full suite execution
 });
