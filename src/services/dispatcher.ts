@@ -14,6 +14,7 @@ import { listService } from './list.service.js';
 import { habitService } from './habit.service.js';
 import { audioService } from './audio.service.js';
 import { contactService } from './contact.service.js';
+import { circleService } from './circle.service.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -539,6 +540,29 @@ export class UpdateDispatcher {
           if (c.telegramUsername) details += `\n💬 <b>Telegram:</b> @${c.telegramUsername}`;
           await this.sendBotMessage(user.id, chatId, `👤 <b>${c.name}</b>${details}`);
         }
+        break;
+      }
+
+      case 'create_circle': {
+        const res = await circleService.createCircle(user.id, call.args.name);
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'show_circles': {
+        const res = await circleService.listUserCircles(user.id);
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'remind_circle': {
+        const res = await circleService.broadcastCircleReminder(
+          user,
+          call.args.circle_name,
+          call.args.text,
+          call.args.remind_local
+        );
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
         break;
       }
 

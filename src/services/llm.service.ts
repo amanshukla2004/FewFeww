@@ -363,6 +363,49 @@ export class LlmService {
       {
         type: 'function',
         function: {
+          name: 'create_circle',
+          description:
+            'Create a new circle for group reminders and sharing (e.g. "create a circle called Family", "create Dev Team circle").',
+          parameters: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Name of the circle (e.g. "Family", "Flatmates", "Dev Team")' },
+            },
+            required: ['name'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'show_circles',
+          description: 'View my circles and invitation links (e.g. "show my circles", "list circles").',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'remind_circle',
+          description:
+            'Send a reminder or message to everyone in a circle (e.g. "remind my Family circle about dinner at 7 PM", "send message to Dev Team circle standup in 10 mins").',
+          parameters: {
+            type: 'object',
+            properties: {
+              circle_name: { type: 'string', description: 'Name of the target circle' },
+              text: { type: 'string', description: 'The reminder or message content to broadcast' },
+              remind_local: { type: 'string', description: 'Optional local ISO scheduled time' },
+            },
+            required: ['circle_name', 'text'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'out_of_scope',
           description: 'Call when message is conversational chit-chat, a joke, or completely unrelated to personal tasks/notes.',
           parameters: {
@@ -445,6 +488,11 @@ Contact Management Rules:
 - If user says "add X to my contacts" or "save contact X" with phone/email/telegram (e.g. "add John to contacts with phone 9876543210", "save contact Sarah sarah@work.com", "add Yash to contacts @yashdev"), call add_contact.
 - If user says "show my contacts", "list my contacts", or "view contacts", call list_contacts.
 - If user asks for a contact's details or info (e.g. "what is John's phone number", "find contact Sarah"), call search_contacts.
+
+Circle & Group Reminder Rules:
+- If user says "create a circle called X" or "create X circle" (e.g. "create a circle called Family", "create Dev Team circle"), call create_circle with name=X.
+- If user says "show my circles", "list my circles", or "my circles", call show_circles.
+- If user says "remind my X circle about Y" or "send message to X circle: Y" (e.g. "remind my 'Family' circle about dinner at 7 PM", "send message to Dev Team standup in 10 mins"), call remind_circle with circle_name=X and text=Y.
 
 If the user explicitly asks to schedule or set an appointment or reminder for a task, but specifies NO date and NO time at all (e.g. "schedule dentist appointment", "remind me to pay bills"), call ask_clarification with reason='missing_schedule_time', pending_title='<Task Title>', and question='When would you like to schedule this? (e.g. "tomorrow 3pm" or "Friday")'.
 If the user simply states an item without scheduling verbs (e.g. "buy milk", "read book"), use create_task without a due date.

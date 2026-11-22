@@ -4,6 +4,7 @@ import { TelegramButton } from './telegram.client.js';
 import { morningDigest } from './morning.digest.js';
 import { privacyService } from './privacy.service.js';
 import { contactService } from './contact.service.js';
+import { circleService } from './circle.service.js';
 
 export interface CommandResponse {
   text: string;
@@ -12,7 +13,22 @@ export interface CommandResponse {
 
 export class CommandRouter {
   async handleCommand(user: User, commandText: string): Promise<CommandResponse> {
-    const cmd = commandText.trim().split(' ')[0].toLowerCase();
+    const parts = commandText.trim().split(/\s+/);
+    const cmd = parts[0].toLowerCase();
+    const arg = parts[1] || '';
+
+    // Handle Deep-Link Circle Joins: /start join_<token>
+    if (cmd === '/start' && arg.startsWith('join_')) {
+      const joinRes = await circleService.joinCircleByToken(arg, user);
+      if (user.onboarding_state !== 'ACTIVE') {
+        const obStep = await onboardingService.startOnboarding(user);
+        return {
+          text: `${joinRes.formattedText}\n\n${obStep.text}`,
+          keyboard: obStep.keyboard,
+        };
+      }
+      return { text: joinRes.formattedText };
+    }
 
     switch (cmd) {
       case '/start':
@@ -26,6 +42,8 @@ export class CommandRouter {
             `<b>Commands:</b>\n` +
             `• /today — View today's priorities\n` +
             `• /list — View upcoming 7-day schedule\n` +
+            `• /contacts — View contact directory\n` +
+            `• /circles — View circles & invite links\n` +
             `• /settings — Timezone, default time & quiet hours\n` +
             `• /pause — Pause nudges temporarily\n` +
             `• /help — Cheatsheet and tips`,
@@ -65,6 +83,11 @@ export class CommandRouter {
 
       case '/contacts': {
         const res = await contactService.listContacts(user.id);
+        return { text: res.formattedText };
+      }
+
+      case '/circles': {
+        const res = await circleService.listUserCircles(user.id);
         return { text: res.formattedText };
       }
 
