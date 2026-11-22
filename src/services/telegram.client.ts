@@ -1,0 +1,67 @@
+import { config } from '../config.js';
+
+export interface TelegramButton {
+  text: string;
+  callback_data: string; // Strictly <= 64 bytes
+}
+
+export class TelegramClient {
+  private baseUrl: string;
+
+  constructor(token: string = config.telegram.botToken) {
+    this.baseUrl = `https://api.telegram.org/bot${token}`;
+  }
+
+  async sendMessage(chatId: number | string, text: string, keyboard?: TelegramButton[][]): Promise<any> {
+    const body: Record<string, any> = {
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+    };
+
+    if (keyboard && keyboard.length > 0) {
+      body.reply_markup = { inline_keyboard: keyboard };
+    }
+
+    return this.post('sendMessage', body);
+  }
+
+  async editMessageText(chatId: number | string, messageId: number, text: string, keyboard?: TelegramButton[][]): Promise<any> {
+    const body: Record<string, any> = {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      parse_mode: 'HTML',
+    };
+
+    if (keyboard) {
+      body.reply_markup = { inline_keyboard: keyboard };
+    }
+
+    return this.post('editMessageText', body);
+  }
+
+  async answerCallbackQuery(callbackQueryId: string, text?: string): Promise<any> {
+    return this.post('answerCallbackQuery', {
+      callback_query_id: callbackQueryId,
+      text,
+    });
+  }
+
+  private async post(method: string, payload: any): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Telegram API Error [${method}]: ${res.status} ${err}`);
+    }
+
+    return res.json();
+  }
+}
+
+export const telegram = new TelegramClient();
