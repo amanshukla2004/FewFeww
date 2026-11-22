@@ -85,7 +85,8 @@ export async function dashboardRoutes(app: FastifyInstance) {
    */
   app.get('/dashboard', async (req: FastifyRequest, reply: FastifyReply) => {
     const query = req.query as Record<string, string>;
-    const userId = query.userId || query.user_id || '1';
+    const rawUserId = query.userId || query.user_id || '1';
+    const userId = String(rawUserId).replace(/[^a-zA-Z0-9_-]/g, '');
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -280,7 +281,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         <div class="card-title">
           <span>📋 Active To-Do Lists & Categories</span>
         </div>
-        <div id="tasks-container" style="max-height: 240px; overflow-y: auto;">
+        <div id="tasks-container" style="max-height: 240px; overflow-y: auto;" aria-live="polite">
           <p style="color: var(--muted); font-size: 14px;">Loading tasks...</p>
         </div>
       </div>
@@ -290,7 +291,7 @@ export async function dashboardRoutes(app: FastifyInstance) {
         <div class="card-title">
           <span>👥 Circles & Group Reminders</span>
         </div>
-        <div id="circles-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;">
+        <div id="circles-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;" aria-live="polite">
           <p style="color: var(--muted); font-size: 14px;">Loading circles...</p>
         </div>
       </div>
@@ -298,9 +299,19 @@ export async function dashboardRoutes(app: FastifyInstance) {
   </div>
 
   <script>
+    function escapeHtml(unsafe) {
+      if (!unsafe) return '';
+      return String(unsafe)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     async function loadDashboard() {
       try {
-        const res = await fetch('/api/dashboard/stats?userId=${userId}');
+        const res = await fetch('/api/dashboard/stats?userId=${encodeURIComponent(userId)}');
         const data = await res.json();
 
         // 1. Render Weight Chart
@@ -374,27 +385,27 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
         // 3. Render Tasks
         const tasksContainer = document.getElementById('tasks-container');
-        if (data.tasks.length === 0) {
+        if (!data.tasks || data.tasks.length === 0) {
           tasksContainer.innerHTML = '<p style="color: var(--muted); font-size: 14px;">No active tasks.</p>';
         } else {
           tasksContainer.innerHTML = data.tasks.map(t => \`
             <div class="task-item \${t.status === 'COMPLETED' ? 'task-status-done' : ''}">
-              <span>\${t.title}</span>
-              <span style="font-size: 12px; color: var(--primary);">[\${t.category || 'General'}]</span>
+              <span>\${escapeHtml(t.title)}</span>
+              <span style="font-size: 12px; color: var(--primary);">[\${escapeHtml(t.category || 'General')}]</span>
             </div>
           \`).join('');
         }
 
         // 4. Render Circles
         const circlesContainer = document.getElementById('circles-container');
-        if (data.circles.length === 0) {
+        if (!data.circles || data.circles.length === 0) {
           circlesContainer.innerHTML = '<p style="color: var(--muted); font-size: 14px;">No circles created yet. Create one with: <i>"create a circle called Family"</i>.</p>';
         } else {
           circlesContainer.innerHTML = data.circles.map(c => \`
             <div class="circle-card">
-              <div style="font-weight: 600; font-size: 15px; margin-bottom: 4px;">\${c.name}</div>
-              <div style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">\${c.member_count} member(s)</div>
-              <a class="circle-link" href="https://t.me/FewFewwDevBot?start=join_\${c.invite_code}" target="_blank">🔗 Invite: join_\${c.invite_code}</a>
+              <div style="font-weight: 600; font-size: 15px; margin-bottom: 4px;">\${escapeHtml(c.name)}</div>
+              <div style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">\${escapeHtml(String(c.member_count))} member(s)</div>
+              <a class="circle-link" href="https://t.me/FewFewwDevBot?start=join_\${encodeURIComponent(c.invite_code)}" target="_blank" rel="noopener noreferrer">🔗 Invite: join_\${escapeHtml(c.invite_code)}</a>
             </div>
           \`).join('');
         }

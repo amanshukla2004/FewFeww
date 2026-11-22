@@ -28,6 +28,11 @@ export async function landingRoutes(app: FastifyInstance) {
       --radius-md: 12px;
     }
 
+    :focus-visible {
+      outline: 2px solid var(--border-highlight);
+      outline-offset: 3px;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background-color: var(--bg);
@@ -351,14 +356,14 @@ export async function landingRoutes(app: FastifyInstance) {
         <a href="#about" class="nav-link">About</a>
         <a href="#changelog" class="nav-link">Changelog</a>
         <a href="#roadmap" class="nav-link">Roadmap</a>
-        <a href="/pricing" class="nav-link active">Pricing</a>
+        <a href="/pricing" class="nav-link active" aria-current="page">Pricing</a>
         <a href="#features" class="nav-link">Features</a>
         <a href="#contact" class="nav-link">Contact</a>
       </nav>
 
       <div class="nav-actions">
         <a href="/dashboard" class="btn-nav-outline">Dashboard</a>
-        <a href="https://t.me/${telegramBotUsername}" target="_blank" class="btn-nav-primary">Get started</a>
+        <a href="https://t.me/${telegramBotUsername}" target="_blank" rel="noopener noreferrer" class="btn-nav-primary">Get started</a>
       </div>
     </div>
   </header>
@@ -375,8 +380,8 @@ export async function landingRoutes(app: FastifyInstance) {
       <!-- 1. Basic Tier -->
       <div class="pricing-card">
         <div class="tier-header">
-          <span style="font-size: 20px;">🪄</span>
-          <span class="tier-name">Basic</span>
+          <span style="font-size: 20px;" aria-hidden="true">🪄</span>
+          <h2 class="tier-name">Basic</h2>
         </div>
         <p class="tier-desc">
           Perfect for individuals getting started with AI productivity assistance and basic WhatsApp automation.
@@ -386,16 +391,16 @@ export async function landingRoutes(app: FastifyInstance) {
           <div class="price-billed">Billed yearly (₹749)</div>
         </div>
         <ul class="features-list">
-          <li class="feature-item"><span class="feature-check">✓</span> Unlimited messages</li>
-          <li class="feature-item"><span class="feature-check">✓</span> Unlimited one-time reminders</li>
-          <li class="feature-item"><span class="feature-check">✓</span> 100+ languages supported</li>
-          <li class="feature-item"><span class="feature-check">✓</span> 5 Voice Notes / Month</li>
-          <li class="feature-item"><span class="feature-check">✓</span> 5 Image Analysis / Month</li>
-          <li class="feature-item"><span class="feature-check">✓</span> Receive reminders from circles</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Unlimited messages</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Unlimited one-time reminders</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> 100+ languages supported</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> 5 Voice Notes / Month</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> 5 Image Analysis / Month</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Receive reminders from circles</li>
         </ul>
         <div class="btn-group">
           <a href="/webhook/whatsapp" class="btn-channel btn-whatsapp">💬 Get started on WhatsApp</a>
-          <a href="https://t.me/${telegramBotUsername}" target="_blank" class="btn-channel btn-telegram">✈️ Get started on Telegram</a>
+          <a href="https://t.me/${telegramBotUsername}" target="_blank" rel="noopener noreferrer" class="btn-channel btn-telegram">✈️ Get started on Telegram</a>
         </div>
       </div>
 
@@ -403,8 +408,8 @@ export async function landingRoutes(app: FastifyInstance) {
       <div class="pricing-card popular">
         <span class="card-badge">⚡ Popular • 20,000+ subscribers</span>
         <div class="tier-header">
-          <span style="font-size: 20px;">⚡</span>
-          <span class="tier-name">Pro</span>
+          <span style="font-size: 20px;" aria-hidden="true">⚡</span>
+          <h2 class="tier-name">Pro</h2>
         </div>
         <p class="tier-desc">
           Advanced features for power users including Google integrations, AI memory, and enhanced automation capabilities.
@@ -414,28 +419,28 @@ export async function landingRoutes(app: FastifyInstance) {
           <div class="price-billed">Billed yearly (₹1089)</div>
         </div>
         <ul class="features-list">
-          <li class="feature-item"><span class="feature-check">✓</span> <b>Everything in Basic, plus:</b></li>
-          <li class="feature-item"><span class="feature-check">✓</span> Repeat reminders (daily, weekly, monthly)</li>
-          <li class="feature-item"><span class="feature-check">✓</span> Drive, Calendar, Gmail and GMeet integrations</li>
-          <li class="feature-item"><span class="feature-check">✓</span> Unlimited Voice Notes (Whisper)</li>
-          <li class="feature-item"><span class="feature-check">✓</span> Unlimited Image Analysis</li>
-          <li class="feature-item"><span class="feature-check">✓</span> Send/receive reminders with circles</li>
-          <li class="feature-item"><span class="feature-check">✓</span> Built-in Habit Tracking (Weight, LeetCode, etc.)</li>
-          <li class="feature-item"><span class="feature-check">✓</span> AI Memory</li>
-          <li class="feature-item"><span class="feature-check">✓</span> 30 Internet Searches / Month</li>
-          <li class="feature-item"><span class="feature-check">✓</span> Create & Manage Lists</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> <b>Everything in Basic, plus:</b></li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Repeat reminders (daily, weekly, monthly)</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Drive, Calendar, Gmail and GMeet integrations</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Unlimited Voice Notes (Whisper)</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Unlimited Image Analysis</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Send/receive reminders with circles</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Built-in Habit Tracking (Weight, LeetCode, etc.)</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> AI Memory</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> 30 Internet Searches / Month</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Create & Manage Lists</li>
         </ul>
         <div class="btn-group">
           <a href="/webhook/whatsapp" class="btn-channel btn-whatsapp">💬 Get started on WhatsApp</a>
-          <a href="https://t.me/${telegramBotUsername}" target="_blank" class="btn-channel btn-telegram">✈️ Get started on Telegram</a>
+          <a href="https://t.me/${telegramBotUsername}" target="_blank" rel="noopener noreferrer" class="btn-channel btn-telegram">✈️ Get started on Telegram</a>
         </div>
       </div>
 
       <!-- 3. Enterprise Tier -->
       <div class="pricing-card">
         <div class="tier-header">
-          <span style="font-size: 20px;">🏢</span>
-          <span class="tier-name">Enterprise</span>
+          <span style="font-size: 20px;" aria-hidden="true">🏢</span>
+          <h2 class="tier-name">Enterprise</h2>
         </div>
         <p class="tier-desc">
           Unlimited access with custom integrations, dedicated support, and advanced security for teams and organizations.
@@ -445,12 +450,12 @@ export async function landingRoutes(app: FastifyInstance) {
           <div class="price-billed">Tailored to your team size</div>
         </div>
         <ul class="features-list">
-          <li class="feature-item"><span class="feature-check">✓</span> <b>Everything in Pro, plus:</b></li>
-          <li class="feature-item"><span class="feature-check">✓</span> Unlimited Minutes of Meeting (MOM)</li>
-          <li class="feature-item"><span class="feature-check">✓</span> Custom Cloud & ERP Integrations</li>
-          <li class="feature-item"><span class="feature-check">✓</span> Dedicated Account Manager</li>
-          <li class="feature-item"><span class="feature-check">✓</span> Advanced Security & Compliance</li>
-          <li class="feature-item"><span class="feature-check">✓</span> Custom SLAs & On-Premises Option</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> <b>Everything in Pro, plus:</b></li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Unlimited Minutes of Meeting (MOM)</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Custom Cloud & ERP Integrations</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Dedicated Account Manager</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Advanced Security & Compliance</li>
+          <li class="feature-item"><span class="feature-check" aria-hidden="true">✓</span> Custom SLAs & On-Premises Option</li>
         </ul>
         <div class="btn-group">
           <a href="mailto:support@fewfeww.io?subject=Enterprise%20Inquiry" class="btn-channel btn-enterprise">📅 Book a demo</a>
