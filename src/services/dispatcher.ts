@@ -438,6 +438,7 @@ export class UpdateDispatcher {
           userTimezone: user.timezone,
           defaultReminderTime: user.default_reminder_time,
           sourceMessageId: messageId,
+          callAlert: call.args.call_alert,
         });
         await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
         break;
@@ -494,6 +495,7 @@ export class UpdateDispatcher {
           userTimezone: user.timezone,
           defaultReminderTime: user.default_reminder_time,
           sourceMessageId: messageId,
+          callAlert: call.args.call_alert,
         });
         await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
         break;

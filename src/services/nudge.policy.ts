@@ -5,7 +5,7 @@ export interface ReminderRecord {
   id: string;
   user_id: string;
   task_id: string;
-  kind: 'USER' | 'LEAD' | 'NUDGE';
+  kind: 'USER' | 'LEAD' | 'NUDGE' | 'CALL';
   nudge_stage: number;
   fire_at: Date;
   status: string;
@@ -20,8 +20,8 @@ export class NudgePolicy {
    * Proactive nudges (kind === 'NUDGE' or nudge_stage > 0) are held during quiet hours.
    */
   maySendNow(user: User, reminder: ReminderRecord, refNow?: DateTime): { allowed: boolean; nextAllowed?: DateTime } {
-    // Explicit user-set reminders always fire on time
-    if (reminder.kind === 'USER' && reminder.nudge_stage === 0) {
+    // Explicit user-set reminders and call alerts always fire on time
+    if ((reminder.kind === 'USER' || reminder.kind === 'CALL') && reminder.nudge_stage === 0) {
       return { allowed: true };
     }
 

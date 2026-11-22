@@ -352,6 +352,32 @@ export class CallbackRouter {
           break;
         }
 
+        case 'snz10': {
+          // Snooze 10 minutes for call alert
+          const newFireAt = new Date(Date.now() + 10 * 60 * 1000);
+
+          await client.query(
+            `UPDATE reminders SET status = 'ACKED', acked_at = now(), ack_action = 'SNOOZE_10M' WHERE id = $1`,
+            [reminderId]
+          );
+
+          await client.query(
+            `UPDATE reminders SET status = 'CANCELLED' WHERE task_id = $1 AND status = 'SCHEDULED'`,
+            [taskId]
+          );
+
+          await client.query(
+            `
+            INSERT INTO reminders (user_id, task_id, kind, nudge_stage, fire_at, status)
+            VALUES ($1, $2, 'CALL', 0, $3, 'SCHEDULED')
+            `,
+            [user.id, taskId, newFireAt]
+          );
+
+          replyText = `💤 <b>Snoozed for 10 minutes:</b> ${title}`;
+          break;
+        }
+
         case 'tom': {
           // Reschedule for tomorrow morning
           const [defH, defM] = user.default_reminder_time.split(':').map((s) => parseInt(s, 10));

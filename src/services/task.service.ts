@@ -15,6 +15,7 @@ export interface CreateTaskParams {
   userTimezone?: string;
   defaultReminderTime?: string;
   sourceMessageId?: number | null;
+  callAlert?: boolean;
 }
 
 export interface TaskResult {
@@ -98,12 +99,13 @@ export class TaskService {
 
       // 2. Insert User Reminder if due date set
       if (dueUtc) {
+        const reminderKind = params.callAlert ? 'CALL' : 'USER';
         await client.query(
           `
           INSERT INTO reminders (user_id, task_id, kind, nudge_stage, fire_at, status)
-          VALUES ($1, $2, 'USER', 0, $3, 'SCHEDULED')
+          VALUES ($1, $2, $3, 0, $4, 'SCHEDULED')
           `,
-          [userId, taskId, dueUtc]
+          [userId, taskId, reminderKind, dueUtc]
         );
       }
 
@@ -113,12 +115,14 @@ export class TaskService {
         INSERT INTO events (user_id, type, entity_type, entity_id, props)
         VALUES ($1, 'task_created', 'task', $2, $3)
         `,
-        [userId, taskId, JSON.stringify({ hasDue: !!dueUtc, hasExplicitTime })]
+        [userId, taskId, JSON.stringify({ hasDue: !!dueUtc, hasExplicitTime, callAlert: !!params.callAlert })]
       );
 
       await client.query('COMMIT');
 
-      let reply = `✅ <b>Task Created:</b> ${title.trim()}`;
+      let reply = params.callAlert
+        ? `🚨📞 <b>Call-Style Ring Alert Scheduled!</b>\n\nI will ring your device at <b>${localFormatted || 'scheduled time'}</b> for: <i>"${title.trim()}"</i>.`
+        : `✅ <b>Task Created:</b> ${title.trim()}`;
       if (localFormatted) {
         reply += `\n⏰ <b>Due:</b> ${localFormatted}`;
       } else {

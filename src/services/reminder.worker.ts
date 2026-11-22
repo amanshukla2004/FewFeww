@@ -4,6 +4,7 @@ import { telegram, TelegramClient, TelegramButton } from './telegram.client.js';
 import { nudgePolicy, ReminderRecord } from './nudge.policy.js';
 import { nudgeService } from './nudge.service.js';
 import { resilienceService } from './resilience.service.js';
+import { DateTime } from 'luxon';
 
 export class ReminderWorker {
   private timer: NodeJS.Timeout | null = null;
@@ -109,7 +110,19 @@ export class ReminderWorker {
         ],
       ];
 
-      if (r.nudge_stage === 1) {
+      if (r.kind === 'CALL') {
+        text = `🚨📞 <b>INCOMING CALL-ALERT RING!</b> 📞🚨\n\n🔔 <b>Wake-up / Immediate Action:</b> ${taskTitle}!\n<i>Ring time: ${DateTime.fromJSDate(r.fire_at).setZone(user.timezone).toFormat('hh:mm a')}</i>`;
+        keyboard = [
+          [
+            { text: '📞 Answer / Done', callback_data: `r:done:${r.id}` },
+            { text: '💤 Snooze 10m', callback_data: `r:snz10:${r.id}` },
+          ],
+          [
+            { text: '☀️ Tomorrow', callback_data: `r:tom:${r.id}` },
+            { text: '🗑 Drop', callback_data: `r:drop:${r.id}` },
+          ],
+        ];
+      } else if (r.nudge_stage === 1) {
         text = `💬 <b>Follow-up:</b> Still planning to do <i>"${taskTitle}"</i>?`;
         keyboard = [
           [

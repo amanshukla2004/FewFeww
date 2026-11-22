@@ -52,6 +52,10 @@ export class LlmService {
                 type: 'string',
                 description: 'Optional list or category name (e.g. "Shopping", "Work", "Movies")',
               },
+              call_alert: {
+                type: 'boolean',
+                description: 'true if the user requested a call or ring alert (e.g. "call me at 6 AM", "ring me at 7 PM")',
+              },
               details: { type: 'string', description: 'Optional extra notes or context (omit if none; never output null)' },
             },
             required: ['title'],
@@ -69,6 +73,10 @@ export class LlmService {
               text: { type: 'string', description: 'What to remind the user about' },
               remind_local: { type: 'string', description: 'Local ISO datetime string in user timezone' },
               time_is_explicit: { type: 'boolean', description: 'true if specific time given' },
+              call_alert: {
+                type: 'boolean',
+                description: 'true if the user requested a call or ring alert (e.g. "call me at 6 AM", "ring me at 7 PM")',
+              },
               recurrence: {
                 type: 'string',
                 enum: ['DAILY', 'WEEKDAYS', 'WEEKLY', 'MONTHLY'],
