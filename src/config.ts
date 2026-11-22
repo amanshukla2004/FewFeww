@@ -42,7 +42,7 @@ export const config: AppConfig = {
   llm: {
     provider: process.env.LLM_PROVIDER || 'groq',
     groqApiKey: process.env.GROQ_API_KEY || '',
-    model: process.env.LLM_MODEL || 'llama-3.3-70b-versatile',
+    model: process.env.LLM_MODEL || 'openai/gpt-oss-120b',
   },
   defaults: {
     timezone: process.env.DEFAULT_TIMEZONE || 'Asia/Kolkata',

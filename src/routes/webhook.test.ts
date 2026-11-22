@@ -7,6 +7,8 @@ describe('Telegram Webhook & Idempotency Engine', () => {
   const app = buildServer();
 
   afterAll(async () => {
+    // Allow background dispatcher to settle before shutting down pool
+    await new Promise((r) => setTimeout(r, 100));
     await app.close();
     await pool.end();
   });
