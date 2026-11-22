@@ -23,6 +23,7 @@ import { momService } from './mom.service.js';
 import { textProcessor } from './text_processor.js';
 import { dailySummaryService } from './daily.summary.service.js';
 import { memoryService } from './memory.service.js';
+import { webSearchService } from './web_search.service.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -798,6 +799,12 @@ export class UpdateDispatcher {
 
       case 'list_memories': {
         const res = await memoryService.listMemories(user.id, call.args.category);
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'internet_search': {
+        const res = await webSearchService.search(user.id, call.args.query);
         await this.sendBotMessage(user.id, chatId, res.formattedText);
         break;
       }

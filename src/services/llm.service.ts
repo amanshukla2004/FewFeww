@@ -687,6 +687,21 @@ export class LlmService {
       {
         type: 'function',
         function: {
+          name: 'internet_search',
+          description:
+            'Search the internet for real-time information, news, documentation, facts, or live events (e.g. "search the web for TypeScript 5.7 release notes", "who won the match yesterday?", "find info about Mars rover").',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'The search term or query' },
+            },
+            required: ['query'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'out_of_scope',
           description: 'Call when message is conversational chit-chat, a joke, or completely unrelated to personal tasks/notes.',
           parameters: {
