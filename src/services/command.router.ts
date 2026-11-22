@@ -6,6 +6,7 @@ import { privacyService } from './privacy.service.js';
 import { contactService } from './contact.service.js';
 import { circleService } from './circle.service.js';
 import { calendarService } from './calendar.service.js';
+import { momService } from './mom.service.js';
 
 export interface CommandResponse {
   text: string;
@@ -95,6 +96,11 @@ export class CommandRouter {
       case '/calendar': {
         const res = await calendarService.listEvents(user.id, user.timezone, 'WEEK');
         return { text: res.formattedText };
+      }
+
+      case '/mom': {
+        const res = await momService.activateMomMode(user.id);
+        return { text: res.text };
       }
 
       case '/settings':

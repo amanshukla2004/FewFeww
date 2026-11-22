@@ -19,6 +19,7 @@ import { calendarService } from './calendar.service.js';
 import { emailService } from './email.service.js';
 import { driveService } from './drive.service.js';
 import { visionService } from './vision.service.js';
+import { momService } from './mom.service.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -227,6 +228,17 @@ export class UpdateDispatcher {
           const transcription = await audioService.transcribeAudio(audioBuf, mime, ext);
           text = transcription.text;
           if (text) {
+            // Check if MOM Mode is active for this user
+            const momCheck = await pool.query(
+              `SELECT * FROM conversation_state WHERE user_id = $1 AND kind = 'MOM_MODE' AND expires_at > now()`,
+              [user.id]
+            );
+            if (momCheck.rowCount && momCheck.rowCount > 0) {
+              await momService.deactivateMomMode(user.id);
+              const momRes = await momService.processMeetingAudio(user.id, text, voice.duration);
+              await this.sendBotMessage(user.id, chatId, momRes.formattedText);
+              return;
+            }
             await this.sendBotMessage(user.id, chatId, `🗣️ <i>"${text}"</i>`);
           }
         }

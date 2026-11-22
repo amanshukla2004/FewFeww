@@ -12,8 +12,8 @@ export interface CreateTaskParams {
   timeIsExplicit?: boolean;
   recurrence?: string | null;
   category?: string | null;
-  userTimezone: string;
-  defaultReminderTime: string;
+  userTimezone?: string;
+  defaultReminderTime?: string;
   sourceMessageId?: number | null;
 }
 
@@ -24,8 +24,13 @@ export interface TaskResult {
 }
 
 export class TaskService {
+  /**
+   * Creates a new task and registers associated reminders and telemetry events atomically.
+   */
   async createTask(params: CreateTaskParams): Promise<TaskResult> {
-    const { userId, title, details, dueLocal, timeIsExplicit, recurrence, category, userTimezone, defaultReminderTime, sourceMessageId } = params;
+    const { userId, title, details, dueLocal, timeIsExplicit, recurrence, category, sourceMessageId } = params;
+    const userTimezone = params.userTimezone || 'Asia/Kolkata';
+    const defaultReminderTime = params.defaultReminderTime || '09:00';
 
     let dueUtc: Date | null = null;
     let hasExplicitTime = false;
@@ -253,32 +258,34 @@ export class TaskService {
     return { text: text.trim() };
   }
 
+  /**
+   * Completes a task by ID or fuzzy text hint, cancels pending reminders, and logs telemetry.
+   */
   async completeTask(userId: string, taskId?: number | string | null, textHint?: string | null): Promise<TaskResult> {
+    let targetId = taskId;
+
+    // Fuzzy resolve task ID by textHint if not explicitly passed
+    if (!targetId && textHint) {
+      const matchRes = await pool.query(
+        `
+        SELECT id, title FROM tasks
+        WHERE user_id = $1 AND status = 'OPEN' AND (title ILIKE $2 OR title % $3)
+        ORDER BY similarity(title, $3) DESC LIMIT 1;
+        `,
+        [userId, `%${textHint}%`, textHint]
+      );
+      if (matchRes.rowCount && matchRes.rowCount > 0) {
+        targetId = matchRes.rows[0].id;
+      }
+    }
+
+    if (!targetId) {
+      return { text: `❓ Couldn't find an open task matching "${textHint || ''}".` };
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-
-      let targetId = taskId;
-
-      // Fuzzy resolve task ID by textHint if not explicitly passed
-      if (!targetId && textHint) {
-        const matchRes = await client.query(
-          `
-          SELECT id, title FROM tasks
-          WHERE user_id = $1 AND status = 'OPEN' AND (title ILIKE $2 OR title % $3)
-          ORDER BY similarity(title, $3) DESC LIMIT 1;
-          `,
-          [userId, `%${textHint}%`, textHint]
-        );
-        if (matchRes.rowCount && matchRes.rowCount > 0) {
-          targetId = matchRes.rows[0].id;
-        }
-      }
-
-      if (!targetId) {
-        await client.query('ROLLBACK');
-        return { text: `❓ Couldn't find an open task matching "${textHint || ''}".` };
-      }
 
       const updateRes = await client.query(
         `
@@ -320,21 +327,24 @@ export class TaskService {
     }
   }
 
-  async dropTask(userId: string, taskId?: number, textHint?: string): Promise<TaskResult> {
+  /**
+   * Drops a task by ID or fuzzy text hint and cancels its reminders.
+   */
+  async dropTask(userId: string, taskId?: number | string | null, textHint?: string | null): Promise<TaskResult> {
     let targetId = taskId;
 
     if (!targetId && textHint) {
       const match = await pool.query(
         `
         SELECT id FROM tasks 
-        WHERE user_id = $1 AND status = 'OPEN' AND similarity(title, $2) > 0.3
-        ORDER BY similarity(title, $2) DESC 
+        WHERE user_id = $1 AND status = 'OPEN' AND (title ILIKE $2 OR title % $3)
+        ORDER BY similarity(title, $3) DESC 
         LIMIT 1;
         `,
-        [userId, textHint]
+        [userId, `%${textHint}%`, textHint]
       );
       if (match.rowCount && match.rowCount > 0) {
-        targetId = Number(match.rows[0].id);
+        targetId = match.rows[0].id;
       }
     }
 
