@@ -1,0 +1,17 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: fewfeww-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fewfeww
+      POSTGRES_USER: fewfeww
+      POSTGRES_PASSWORD: devpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations/001_init_schema.sql:/docker-entrypoint-initdb.d/001_init_schema.sql:ro
+
+volumes:
+  pgdata:
