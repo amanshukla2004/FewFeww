@@ -1,6 +1,7 @@
 import { buildServer } from './server.js';
 import { config } from './config.js';
 import { pool } from './db/pool.js';
+import { reminderWorker } from './services/reminder.worker.js';
 
 async function start() {
   const app = buildServer();
@@ -9,6 +10,9 @@ async function start() {
     // Verify DB connectivity on boot
     const dbRes = await pool.query('SELECT current_database(), version()');
     app.log.info(`Connected to PostgreSQL: ${dbRes.rows[0].current_database}`);
+
+    // Start Persistent Scheduler (10s interval)
+    reminderWorker.start(10000);
 
     await app.listen({ port: config.port, host: '0.0.0.0' });
     console.log(`\n🚀 FewFeww Backend running on port ${config.port}`);
@@ -23,6 +27,7 @@ async function start() {
   for (const sig of closeSignals) {
     process.on(sig, async () => {
       console.log(`\nReceived ${sig}, shutting down gracefully...`);
+      reminderWorker.stop();
       await app.close();
       await pool.end();
       process.exit(0);
