@@ -16,6 +16,7 @@ import { audioService } from './audio.service.js';
 import { contactService } from './contact.service.js';
 import { circleService } from './circle.service.js';
 import { calendarService } from './calendar.service.js';
+import { emailService } from './email.service.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -593,6 +594,46 @@ export class UpdateDispatcher {
           call.args.provider || 'ALL'
         );
         await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'draft_email': {
+        const res = await emailService.createDraft({
+          userId: user.id,
+          recipient: call.args.recipient,
+          subject: call.args.subject,
+          body: call.args.body,
+        });
+        await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
+        break;
+      }
+
+      case 'send_email': {
+        if (call.args.draft_id) {
+          const res = await emailService.sendEmail(call.args.draft_id, user.id);
+          await this.sendBotMessage(user.id, chatId, res.text);
+        } else if (call.args.recipient && call.args.subject && call.args.body) {
+          const { draft } = await emailService.createDraft({
+            userId: user.id,
+            recipient: call.args.recipient,
+            subject: call.args.subject,
+            body: call.args.body,
+          });
+          const res = await emailService.sendEmail(draft.id, user.id);
+          await this.sendBotMessage(user.id, chatId, res.text);
+        } else {
+          await this.sendBotMessage(
+            user.id,
+            chatId,
+            `⚠️ Please specify recipient, subject, and body to send an email.`
+          );
+        }
+        break;
+      }
+
+      case 'list_email_drafts': {
+        const res = await emailService.listDrafts(user.id);
+        await this.sendBotMessage(user.id, chatId, res.text);
         break;
       }
 

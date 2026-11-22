@@ -458,6 +458,51 @@ export class LlmService {
       {
         type: 'function',
         function: {
+          name: 'draft_email',
+          description:
+            'Draft an email to a recipient with subject and body (e.g. "draft an email to john@example.com about project update", "draft email to sarah subject: lunch plans body: let us meet at 1").',
+          parameters: {
+            type: 'object',
+            properties: {
+              recipient: { type: 'string', description: 'Recipient email address' },
+              subject: { type: 'string', description: 'Subject line of the email' },
+              body: { type: 'string', description: 'Body text or content of the email' },
+            },
+            required: ['recipient', 'subject', 'body'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'send_email',
+          description:
+            'Send an email or send an existing draft (e.g. "send email to boss@company.com subject: Weekly report body: here is the status", "send draft #1").',
+          parameters: {
+            type: 'object',
+            properties: {
+              draft_id: { type: 'number', description: 'ID of an existing draft to send' },
+              recipient: { type: 'string', description: 'Recipient email address if sending directly' },
+              subject: { type: 'string', description: 'Subject line if sending directly' },
+              body: { type: 'string', description: 'Email body text if sending directly' },
+            },
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'list_email_drafts',
+          description: 'View pending or unsent email drafts (e.g. "show my email drafts", "list drafts").',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'out_of_scope',
           description: 'Call when message is conversational chit-chat, a joke, or completely unrelated to personal tasks/notes.',
           parameters: {

@@ -5,6 +5,7 @@ import { nudgeService } from './nudge.service.js';
 import { privacyService } from './privacy.service.js';
 import { taskService } from './task.service.js';
 import { habitService } from './habit.service.js';
+import { emailService } from './email.service.js';
 import { DateTime } from 'luxon';
 
 export class CallbackRouter {
@@ -39,6 +40,27 @@ export class CallbackRouter {
     if (data.startsWith('pause:')) {
       const days = data.split(':')[1];
       await this.handlePauseAction(user, chatId, messageId, days);
+      return;
+    }
+
+    // 2.5 Email Action Callbacks (em:s:<draftId>, em:d:<draftId>)
+    if (data.startsWith('em:')) {
+      const [, action, draftId] = data.split(':');
+      if (action === 's') {
+        const res = await emailService.sendEmail(draftId, user.id);
+        if (messageId) {
+          await this.tg.editMessageText(chatId, messageId, res.text);
+        } else {
+          await this.tg.sendMessage(chatId, res.text);
+        }
+      } else if (action === 'd') {
+        const res = await emailService.discardEmail(draftId, user.id);
+        if (messageId) {
+          await this.tg.editMessageText(chatId, messageId, res.text);
+        } else {
+          await this.tg.sendMessage(chatId, res.text);
+        }
+      }
       return;
     }
 
