@@ -15,6 +15,7 @@ import { habitService } from './habit.service.js';
 import { audioService } from './audio.service.js';
 import { contactService } from './contact.service.js';
 import { circleService } from './circle.service.js';
+import { calendarService } from './calendar.service.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -561,6 +562,34 @@ export class UpdateDispatcher {
           call.args.circle_name,
           call.args.text,
           call.args.remind_local
+        );
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'schedule_calendar_event': {
+        const res = await calendarService.createEvent({
+          userId: user.id,
+          title: call.args.title,
+          userTimezone: user.timezone,
+          provider: call.args.provider,
+          startLocal: call.args.start_local,
+          endLocal: call.args.end_local,
+          durationMinutes: call.args.duration_minutes,
+          attendees: call.args.attendees,
+          location: call.args.location,
+          description: call.args.description,
+          generateMeet: call.args.generate_meet,
+        });
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'view_calendar': {
+        const res = await calendarService.listEvents(
+          user.id,
+          user.timezone,
+          call.args.timeframe || 'WEEK'
         );
         await this.sendBotMessage(user.id, chatId, res.formattedText);
         break;

@@ -15,6 +15,8 @@ export interface InterpretResult {
   latencyMs: number;
 }
 
+let primaryRateLimitedUntil = 0;
+
 export class LlmService {
   private groq: Groq;
 
@@ -406,6 +408,51 @@ export class LlmService {
       {
         type: 'function',
         function: {
+          name: 'schedule_calendar_event',
+          description:
+            'Schedule an appointment, meeting, or event on Google or Outlook Calendar with attendees, Meet link, and location (e.g. "schedule a meeting tomorrow at 3 PM", "add dentist appointment on Dec 1st at 10 AM", "team sync for 1 hour tomorrow at 10 AM with john@example.com", "schedule a video call for project discussion").',
+          parameters: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: 'Title or topic of the meeting or appointment' },
+              start_local: { type: 'string', description: 'Start time in local ISO format (YYYY-MM-DDTHH:mm:ss)' },
+              end_local: { type: 'string', description: 'Optional end time in local ISO format' },
+              duration_minutes: { type: 'number', description: 'Duration in minutes (e.g. 30, 60)' },
+              provider: { type: 'string', enum: ['GOOGLE', 'OUTLOOK'], description: 'Calendar provider (defaults to GOOGLE)' },
+              attendees: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'List of attendee email addresses',
+              },
+              location: { type: 'string', description: 'Meeting location or room' },
+              description: { type: 'string', description: 'Meeting description or notes' },
+              generate_meet: { type: 'boolean', description: 'Whether to create a Google Meet video link' },
+            },
+            required: ['title'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'view_calendar',
+          description:
+            'View scheduled appointments and events from Google/Outlook calendar (e.g. "show my calendar for today", "what\'s on my schedule tomorrow", "list my calendar events for next week").',
+          parameters: {
+            type: 'object',
+            properties: {
+              timeframe: {
+                type: 'string',
+                enum: ['TODAY', 'TOMORROW', 'WEEK'],
+                description: 'Timeframe to view events for',
+              },
+            },
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'out_of_scope',
           description: 'Call when message is conversational chit-chat, a joke, or completely unrelated to personal tasks/notes.',
           parameters: {
@@ -519,16 +566,48 @@ ${openTasksText}`;
     messages.push({ role: 'user', content: userMessage });
 
     const start = Date.now();
+    const primaryModel = config.llm.model;
+    const fallbackModel = primaryModel === 'openai/gpt-oss-120b' ? 'openai/gpt-oss-20b' : 'openai/gpt-oss-120b';
+
+    let usedModel = Date.now() < primaryRateLimitedUntil ? fallbackModel : primaryModel;
+    let response: any;
+
     try {
-      const response = await this.groq.chat.completions.create({
-        model: config.llm.model,
+      response = await this.groq.chat.completions.create({
+        model: usedModel,
         messages,
         tools: this.getTools(),
         tool_choice: 'auto',
         temperature: 0,
         max_tokens: 600,
       });
+    } catch (err: any) {
+      if ((err.status === 429 || err?.error?.code === 'rate_limit_exceeded') && usedModel !== fallbackModel) {
+        primaryRateLimitedUntil = Date.now() + 5 * 60 * 1000;
+        console.warn(`Primary model ${primaryModel} rate limited. Falling back to ${fallbackModel}...`);
+        usedModel = fallbackModel;
+        try {
+          response = await this.groq.chat.completions.create({
+            model: fallbackModel,
+            messages,
+            tools: this.getTools(),
+            tool_choice: 'auto',
+            temperature: 0,
+            max_tokens: 600,
+          });
+        } catch (fbErr: any) {
+          const latencyMs = Date.now() - start;
+          await this.logLlmCall(user.id, fallbackModel, 0, 0, latencyMs, `error: ${fbErr.message}`);
+          throw fbErr;
+        }
+      } else {
+        const latencyMs = Date.now() - start;
+        await this.logLlmCall(user.id, usedModel, 0, 0, latencyMs, `error: ${err.message}`);
+        throw err;
+      }
+    }
 
+    try {
       const latencyMs = Date.now() - start;
       const choice = response.choices[0];
       const toolCalls: ToolCall[] = [];
@@ -552,7 +631,7 @@ ${openTasksText}`;
       // Log to llm_calls table
       await this.logLlmCall(
         user.id,
-        config.llm.model,
+        usedModel,
         response.usage?.prompt_tokens || 0,
         response.usage?.completion_tokens || 0,
         latencyMs,
@@ -566,7 +645,7 @@ ${openTasksText}`;
       };
     } catch (err: any) {
       const latencyMs = Date.now() - start;
-      await this.logLlmCall(user.id, config.llm.model, 0, 0, latencyMs, `error: ${err.message}`);
+      await this.logLlmCall(user.id, usedModel, 0, 0, latencyMs, `error: ${err.message}`);
       throw err;
     }
   }

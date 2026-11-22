@@ -5,6 +5,7 @@ import { morningDigest } from './morning.digest.js';
 import { privacyService } from './privacy.service.js';
 import { contactService } from './contact.service.js';
 import { circleService } from './circle.service.js';
+import { calendarService } from './calendar.service.js';
 
 export interface CommandResponse {
   text: string;
@@ -88,6 +89,11 @@ export class CommandRouter {
 
       case '/circles': {
         const res = await circleService.listUserCircles(user.id);
+        return { text: res.formattedText };
+      }
+
+      case '/calendar': {
+        const res = await calendarService.listEvents(user.id, user.timezone, 'WEEK');
         return { text: res.formattedText };
       }
 

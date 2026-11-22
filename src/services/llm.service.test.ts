@@ -36,8 +36,8 @@ describe('LLM Service Tool-Calling Pipeline (Groq)', () => {
     // Verify call logged to llm_calls table
     const logRes = await pool.query('SELECT * FROM llm_calls WHERE user_id = $1', [userObj.id]);
     expect(logRes.rowCount).toBeGreaterThanOrEqual(1);
-    expect(logRes.rows[0].model).toBe(config.llm.model);
-  }, 30000);
+    expect(['openai/gpt-oss-120b', 'openai/gpt-oss-20b']).toContain(logRes.rows[0].model);
+  }, 60000);
 
   it('extracts save_note tool call for thoughts without deadlines', async () => {
     const result = await llmService.interpret(
@@ -50,7 +50,7 @@ describe('LLM Service Tool-Calling Pipeline (Groq)', () => {
     expect(noteCall).toBeDefined();
     const textInNote = `${noteCall?.args.title || ''} ${noteCall?.args.content || ''}`;
     expect(textInNote).toContain('distributed databases');
-  }, 30000);
+  }, 60000);
 
   it('detects out_of_scope tool call for chit-chat', async () => {
     const result = await llmService.interpret(
@@ -61,5 +61,5 @@ describe('LLM Service Tool-Calling Pipeline (Groq)', () => {
     expect(result.toolCalls.length).toBeGreaterThanOrEqual(1);
     const oosCall = result.toolCalls.find((t) => t.name === 'out_of_scope');
     expect(oosCall).toBeDefined();
-  }, 30000);
+  }, 60000);
 });
