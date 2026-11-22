@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "poll": "tsx src/dev/polling.ts",
-    "test": "vitest run",
+    "test": "vitest run --fileParallelism=false",
     "migrate": "tsx src/db/migrate.ts"
   },
   "dependencies": {

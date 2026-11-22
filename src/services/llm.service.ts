@@ -46,6 +46,10 @@ export class LlmService {
                 enum: ['DAILY', 'WEEKDAYS', 'WEEKLY', 'MONTHLY'],
                 description: 'Optional recurrence interval if repeated (e.g. "DAILY" for daily, "WEEKLY" for weekly)',
               },
+              category: {
+                type: 'string',
+                description: 'Optional list or category name (e.g. "Shopping", "Work", "Movies")',
+              },
               details: { type: 'string', description: 'Optional extra notes or context (omit if none; never output null)' },
             },
             required: ['title'],
@@ -135,6 +139,47 @@ export class LlmService {
       {
         type: 'function',
         function: {
+          name: 'create_list',
+          description: 'Create a new to-do list or category (e.g. "create a todo list called Weekend Plans", "create todos called Movies").',
+          parameters: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Name of the to-do list or category' },
+            },
+            required: ['name'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'view_lists',
+          description: 'View to-do lists or view tasks in a specific category (e.g. "show my todos", "list my shopping list", "show my Work todos").',
+          parameters: {
+            type: 'object',
+            properties: {
+              category: { type: 'string', description: 'Optional list name to view items for. Omit to list all categories.' },
+            },
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'complete_list',
+          description: 'Mark all tasks in a category or list as complete (e.g. "complete all Work todos", "mark shopping list done").',
+          parameters: {
+            type: 'object',
+            properties: {
+              category: { type: 'string', description: 'Name of the list or category to complete' },
+            },
+            required: ['category'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'ask_clarification',
           description:
             'Ask the user for clarification when they explicitly ask to schedule or remind about a task but provide NO date and NO time, or if the action is genuinely ambiguous.',
@@ -197,6 +242,13 @@ Conversation Memory & Context Rules:
 - If the assistant previously asked for a time or detail (e.g. "What time each day should I remind you about DSA questions?"), and the user replies with a time (e.g. "10 AM") or confirmation, DO NOT ask for clarification again! Execute create_task immediately with the task title from the prior turn, the time from this turn, and appropriate recurrence (e.g. DAILY).
 - If the user says "reminder", "task", "i told you about this", or refers to earlier messages, look at the message history to fulfill their request. Never call out_of_scope when the user is trying to set up or manage tasks.
 - Avoid repeated clarification questions. If enough information exists across turns to create a task, execute create_task!
+
+To-Do Lists & Categories Rules:
+- If user says "add X to my Y list" or "add X to Y tasks" (e.g. "add milk to my shopping list", "add finish report to work tasks"), call create_task with title=X and category=Y.
+- If user says "create a todo list called X" or "create todos called X", call create_list with name=X.
+- If user says "show my todos", "list my todos", or "show my lists", call view_lists without category.
+- If user says "show my X todos" or "list items in my X list", call view_lists with category=X.
+- If user says "complete all X todos", call complete_list with category=X.
 
 If the user explicitly asks to schedule or set an appointment or reminder for a task, but specifies NO date and NO time at all (e.g. "schedule dentist appointment", "remind me to pay bills"), call ask_clarification with reason='missing_schedule_time', pending_title='<Task Title>', and question='When would you like to schedule this? (e.g. "tomorrow 3pm" or "Friday")'.
 If the user simply states an item without scheduling verbs (e.g. "buy milk", "read book"), use create_task without a due date.

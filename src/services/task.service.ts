@@ -2,6 +2,7 @@ import { pool } from '../db/pool.js';
 import { dateResolver, DateResolutionResult } from './date.resolver.js';
 import { TelegramButton } from './telegram.client.js';
 import { DateTime } from 'luxon';
+import { listService } from './list.service.js';
 
 export interface CreateTaskParams {
   userId: string;
@@ -10,6 +11,7 @@ export interface CreateTaskParams {
   dueLocal?: string | null;
   timeIsExplicit?: boolean;
   recurrence?: string | null;
+  category?: string | null;
   userTimezone: string;
   defaultReminderTime: string;
   sourceMessageId?: number | null;
@@ -23,11 +25,19 @@ export interface TaskResult {
 
 export class TaskService {
   async createTask(params: CreateTaskParams): Promise<TaskResult> {
-    const { userId, title, details, dueLocal, timeIsExplicit, recurrence, userTimezone, defaultReminderTime, sourceMessageId } = params;
+    const { userId, title, details, dueLocal, timeIsExplicit, recurrence, category, userTimezone, defaultReminderTime, sourceMessageId } = params;
 
     let dueUtc: Date | null = null;
     let hasExplicitTime = false;
     let localFormatted: string | null = null;
+    let listId: string | null = null;
+    let cleanCategory: string | null = null;
+
+    if (category) {
+      cleanCategory = category.trim();
+      const list = await listService.getOrCreateList(userId, cleanCategory);
+      listId = list.id;
+    }
 
     if (dueLocal) {
       const resolved = dateResolver.resolveProposed(dueLocal, timeIsExplicit ?? false, {
@@ -62,11 +72,21 @@ export class TaskService {
       // 1. Insert Task
       const taskRes = await client.query(
         `
-        INSERT INTO tasks (user_id, title, details, due_at, due_has_time, recurrence, source_message_id, status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN')
+        INSERT INTO tasks (user_id, title, details, due_at, due_has_time, recurrence, category, list_id, source_message_id, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'OPEN')
         RETURNING id, title, due_at;
         `,
-        [userId, title.trim(), details || null, dueUtc, hasExplicitTime, recurrence ? JSON.stringify({ freq: recurrence }) : null, sourceMessageId || null]
+        [
+          userId,
+          title.trim(),
+          details || null,
+          dueUtc,
+          hasExplicitTime,
+          recurrence ? JSON.stringify({ freq: recurrence }) : null,
+          cleanCategory || null,
+          listId ? parseInt(listId, 10) : null,
+          sourceMessageId || null,
+        ]
       );
 
       const taskId = String(taskRes.rows[0].id);
@@ -101,6 +121,9 @@ export class TaskService {
       }
       if (recurrence) {
         reply += `\n🔁 <b>Repeats:</b> ${recurrence.toLowerCase()}`;
+      }
+      if (cleanCategory) {
+        reply += `\n📁 <b>List:</b> ${cleanCategory}`;
       }
 
       const keyboard: TelegramButton[][] = [

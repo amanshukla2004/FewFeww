@@ -7,18 +7,25 @@ export async function runMigrations() {
   const client = await pool.connect();
 
   try {
-    const migrationFile = path.resolve(process.cwd(), 'migrations', '001_init_schema.sql');
-    if (!fs.existsSync(migrationFile)) {
-      throw new Error(`Migration file not found at ${migrationFile}`);
+    const migrationsDir = path.resolve(process.cwd(), 'migrations');
+    if (!fs.existsSync(migrationsDir)) {
+      throw new Error(`Migrations directory not found at ${migrationsDir}`);
     }
 
-    const sql = fs.readFileSync(migrationFile, 'utf8');
+    const files = fs
+      .readdirSync(migrationsDir)
+      .filter((f) => f.endsWith('.sql'))
+      .sort();
 
-    console.log('Applying 001_init_schema.sql...');
-    await client.query('BEGIN');
-    await client.query(sql);
-    await client.query('COMMIT');
-    console.log('Migration executed successfully.');
+    for (const file of files) {
+      const filePath = path.join(migrationsDir, file);
+      const sql = fs.readFileSync(filePath, 'utf8');
+      console.log(`Applying migration ${file}...`);
+      await client.query('BEGIN');
+      await client.query(sql);
+      await client.query('COMMIT');
+      console.log(`Migration ${file} applied successfully.`);
+    }
 
     // Verification
     const tablesRes = await client.query(`
@@ -34,7 +41,7 @@ export async function runMigrations() {
 
     console.log('\n--- Migration Verification ---');
     console.log(`Extensions enabled: ${extensionsRes.rows.map(r => r.extname).join(', ') || 'None'}`);
-    console.log(`Tables created (${tablesRes.rows.length}):`);
+    console.log(`Tables present (${tablesRes.rows.length}):`);
     tablesRes.rows.forEach(r => console.log(`  - ${r.table_name}`));
 
     return tablesRes.rows.map(r => r.table_name);

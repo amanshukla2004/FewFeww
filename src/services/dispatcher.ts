@@ -10,6 +10,7 @@ import { searchService } from './search.service.js';
 import { morningDigest } from './morning.digest.js';
 import { resilienceService } from './resilience.service.js';
 import { dateResolver } from './date.resolver.js';
+import { listService } from './list.service.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -95,6 +96,47 @@ export class UpdateDispatcher {
         await this.logMessage(user.id, 'OUTBOUND', cq.message.message_id, 'TEXT', undoMsg);
       } else {
         await this.sendBotMessage(user.id, chatId, undoMsg);
+      }
+      return;
+    }
+
+    // Handle List & Category Callbacks
+    if (data.startsWith('l:v:')) {
+      const listName = data.replace('l:v:', '');
+      const res = await listService.formatListItems(user.id, listName);
+      if (cq.message?.message_id) {
+        await this.tg.editMessageText(chatId, cq.message.message_id, res.text, res.keyboard);
+        await this.logMessage(user.id, 'OUTBOUND', cq.message.message_id, 'TEXT', res.text);
+      } else {
+        await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
+      }
+      return;
+    }
+
+    if (data.startsWith('l:doneall:')) {
+      const listName = data.replace('l:doneall:', '');
+      const count = await listService.completeAllInList(user.id, listName);
+      const reply = `🎉 <b>Completed:</b> Marked ${count} task(s) in <i>"${listName}"</i> as complete!`;
+      if (cq.message?.message_id) {
+        await this.tg.editMessageText(chatId, cq.message.message_id, reply, [
+          [{ text: '🔙 View All Lists', callback_data: 'l:back' }],
+        ]);
+        await this.logMessage(user.id, 'OUTBOUND', cq.message.message_id, 'TEXT', reply);
+      } else {
+        await this.sendBotMessage(user.id, chatId, reply, [
+          [{ text: '🔙 View All Lists', callback_data: 'l:back' }],
+        ]);
+      }
+      return;
+    }
+
+    if (data === 'l:back') {
+      const res = await listService.formatListsOverview(user.id);
+      if (cq.message?.message_id) {
+        await this.tg.editMessageText(chatId, cq.message.message_id, res.text, res.keyboard);
+        await this.logMessage(user.id, 'OUTBOUND', cq.message.message_id, 'TEXT', res.text);
+      } else {
+        await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
       }
       return;
     }
@@ -244,11 +286,53 @@ export class UpdateDispatcher {
           dueLocal: call.args.due_local,
           timeIsExplicit: call.args.time_is_explicit,
           recurrence: call.args.recurrence,
+          category: call.args.category,
           userTimezone: user.timezone,
           defaultReminderTime: user.default_reminder_time,
           sourceMessageId: messageId,
         });
         await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
+        break;
+      }
+
+      case 'create_list': {
+        const res = await listService.createList(user.id, call.args.name);
+        await this.sendBotMessage(
+          user.id,
+          chatId,
+          `📁 <b>Created To-Do List:</b> <i>"${res.name}"</i>\n\nYou can add tasks to it anytime by saying:\n• <code>add [item] to my ${res.name} list</code>`,
+          [[{ text: `📋 View ${res.name} List`, callback_data: `l:v:${res.name}` }]]
+        );
+        break;
+      }
+
+      case 'view_lists': {
+        if (call.args.category) {
+          const res = await listService.formatListItems(user.id, call.args.category);
+          await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
+        } else {
+          const res = await listService.formatListsOverview(user.id);
+          await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
+        }
+        break;
+      }
+
+      case 'complete_list': {
+        const count = await listService.completeAllInList(user.id, call.args.category);
+        if (count > 0) {
+          await this.sendBotMessage(
+            user.id,
+            chatId,
+            `🎉 <b>Completed All Items:</b> Marked ${count} task(s) in <i>"${call.args.category}"</i> as complete!`,
+            [[{ text: '🔙 View All Lists', callback_data: 'l:back' }]]
+          );
+        } else {
+          await this.sendBotMessage(
+            user.id,
+            chatId,
+            `ℹ️ No open tasks found in <i>"${call.args.category}"</i> to complete.`
+          );
+        }
         break;
       }
 
