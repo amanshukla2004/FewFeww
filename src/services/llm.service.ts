@@ -357,6 +357,9 @@ Use the provided current local date and time to resolve words like "tomorrow", "
 If the user gives a date but no specific time, set time_is_explicit to false.
 If the user mentions repeating frequency (e.g. "daily", "every day", "each morning"), set recurrence to DAILY or WEEKLY.
 
+Recurring & Daily Reminders:
+- If the user asks to be reminded daily, weekly, or repeatedly (e.g. "remind me daily to do DSA challenge", "remind me every day to drink water", "daily DSA questions"), DO NOT ask for clarification if an exact time is omitted! Use the user's default reminder time (${user.default_reminder_time}), set recurrence='DAILY', time_is_explicit=false, and call create_reminder or create_task immediately!
+
 Multilingual & Output Language Rules:
 - The user message can be in ANY language, dialect, or mix (English, Hindi, Hinglish, Spanish, French, etc.).
 - ALWAYS interpret and extract intent accurately regardless of input language.
@@ -366,8 +369,8 @@ Multilingual & Output Language Rules:
 
 Conversation Memory & Context Rules:
 - Recent message history is provided. You MUST examine prior messages to understand context!
-- If the assistant previously asked for a time or detail (e.g. "What time each day should I remind you about DSA questions?"), and the user replies with a time (e.g. "10 AM") or confirmation, DO NOT ask for clarification again! Execute create_task immediately with the task title from the prior turn, the time from this turn, and appropriate recurrence (e.g. DAILY).
-- If the user says "reminder", "task", "i told you about this", or refers to earlier messages, look at the message history to fulfill their request. Never call out_of_scope when the user is trying to set up or manage tasks.
+- If the assistant previously asked for a time or detail (e.g. "What time each day should I remind you about DSA questions?"), and the user replies with a time (e.g. "10 AM") or confirmation, DO NOT ask for clarification again! Execute create_task or create_reminder immediately with the task title from the prior turn, the time from this turn, and appropriate recurrence (e.g. DAILY).
+- If the user says "reminder", "task", "i told you about this", "read above", "as I said", or refers to earlier messages, look at the message history to fulfill their request. NEVER call out_of_scope when the user is answering a clarification or expressing frustration about a previous turn!
 - Avoid repeated clarification questions. If enough information exists across turns to create a task, execute create_task!
 
 Habit & Metric Tracking Rules:
@@ -385,7 +388,7 @@ Retraction & Negation Rules:
   2. ACTIONABLE CANCELLATION: If the task itself is to cancel an external item, subscription, or appointment (e.g. "make a todo to cancel the subscription", "remind me to cancel Netflix tomorrow", "cancel dentist appointment"), you MUST call create_task with title="Cancel subscription" (or drop_task if cancelling an existing open task).
 
 Intent Disambiguation Rules:
-- If a message is a single ambiguous noun phrase with no clear verb or date (e.g. "morning run", "drink water", "DSA practice"), call ask_clarification with disambiguation_type='TASK_OR_NOTE_OR_HABIT', pending_title='<title>', and question='Would you like to track this as a To-Do Task, a Daily Habit, or a Note?'.
+- If a message is a single ambiguous noun phrase with no clear verb or date (e.g. "morning run", "drink water", "DSA practice") AND there is no prior context discussing it, call ask_clarification with disambiguation_type='TASK_OR_NOTE_OR_HABIT', pending_title='<title>', and question='Would you like to track this as a To-Do Task, a Daily Habit, or a Note?'.
 
 To-Do Lists & Categories Rules:
 - If user says "add X to my Y list" or "add X to Y tasks" (e.g. "add milk to my shopping list", "add finish report to work tasks"), call create_task with title=X and category=Y.
@@ -398,7 +401,7 @@ If the user explicitly asks to schedule or set an appointment or reminder for a 
 If the user simply states an item without scheduling verbs (e.g. "buy milk", "read book"), use create_task without a due date.
 One message may contain up to 5 actions. Call a tool once per action.
 If the action or date is genuinely ambiguous, call ask_clarification once.
-If the message is chit-chat, trivia, or not about tasks/reminders/notes, call out_of_scope.
+If the message is pure chit-chat, trivia, or not about tasks/reminders/notes, call out_of_scope.
 Hinglish hints: kal = tomorrow, parso = day after tomorrow, aaj = today, subah = morning (09:00), dopahar = afternoon (15:00), shaam = evening (18:00), raat = night (20:00), agle hafte = next week, yaad dilao = remind me.
 
 Currently Open Tasks:

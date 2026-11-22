@@ -158,4 +158,69 @@ describe('Option A Clarification Loop & Open Task Fallback', () => {
       expect.any(Array)
     );
   });
+
+  it('resolves textual time "10 AM" from user during active clarification state', async () => {
+    // Seed pending conversation state for DSA challenge questions
+    await pool.query(
+      `
+      INSERT INTO conversation_state (user_id, kind, context, expires_at)
+      VALUES ($1, 'CLARIFY_TIME', $2, now() + interval '10 minutes')
+      `,
+      [dbUserId, JSON.stringify({ pending_title: 'DSA challenge questions', recurrence: 'DAILY' })]
+    );
+
+    // Dispatch textual inbound message "10 AM"
+    await (dispatcher as any).handleMessage({
+      message_id: 301,
+      from: { id: testUserId, first_name: 'ClarifyUser' },
+      chat: { id: testUserId },
+      text: '10 AM',
+    });
+
+    // Check task created with title "DSA challenge questions", explicit time 10 AM, and DAILY recurrence
+    const taskRes = await pool.query(
+      `SELECT title, recurrence, due_at FROM tasks WHERE user_id = $1 AND title = 'DSA challenge questions'`,
+      [dbUserId]
+    );
+    expect(taskRes.rowCount).toBe(1);
+    expect(taskRes.rows[0].recurrence).toEqual({ freq: 'DAILY' });
+
+    // Check conversation_state cleaned up
+    const stateCheck = await pool.query('SELECT * FROM conversation_state WHERE user_id = $1', [dbUserId]);
+    expect(stateCheck.rowCount).toBe(0);
+
+    // Bot confirmed creation
+    expect(mockTg.sendMessage).toHaveBeenCalledWith(
+      testUserId,
+      expect.stringContaining('DSA challenge questions'),
+      expect.any(Array)
+    );
+  });
+
+  it('resolves textual "task" response during active kind clarification state', async () => {
+    await pool.query(
+      `
+      INSERT INTO conversation_state (user_id, kind, context, expires_at)
+      VALUES ($1, 'CLARIFY_KIND', $2, now() + interval '10 minutes')
+      `,
+      [dbUserId, JSON.stringify({ pending_title: 'DSA challenge' })]
+    );
+
+    await (dispatcher as any).handleMessage({
+      message_id: 302,
+      from: { id: testUserId, first_name: 'ClarifyUser' },
+      chat: { id: testUserId },
+      text: 'task',
+    });
+
+    const taskRes = await pool.query(
+      `SELECT title, status FROM tasks WHERE user_id = $1 AND title = 'DSA challenge'`,
+      [dbUserId]
+    );
+    expect(taskRes.rowCount).toBe(1);
+    expect(taskRes.rows[0].status).toBe('OPEN');
+
+    const stateCheck = await pool.query('SELECT * FROM conversation_state WHERE user_id = $1', [dbUserId]);
+    expect(stateCheck.rowCount).toBe(0);
+  });
 });

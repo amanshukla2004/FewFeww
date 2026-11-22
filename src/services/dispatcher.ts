@@ -157,7 +157,7 @@ export class UpdateDispatcher {
     const messageHistory = await this.getRecentMessageHistory(user.id, 8);
 
     // Save inbound message log
-    await this.logMessage(user.id, 'INBOUND', msg.message_id, 'TEXT', text);
+    const dbMessageId = await this.logMessage(user.id, 'INBOUND', msg.message_id, 'TEXT', text);
 
     // 1. Command Routing (e.g. /start, /help, /settings)
     if (text.startsWith('/')) {
@@ -173,14 +173,17 @@ export class UpdateDispatcher {
       return;
     }
 
-    // 2.2 Active Clarification State check (e.g. user answering when to schedule)
+    // 2.2 Active Clarification State check (e.g. user answering when to schedule, or choosing task/habit/note)
     const stateRes = await pool.query(
-      `SELECT context FROM conversation_state WHERE user_id = $1 AND kind = 'CLARIFY_TIME' AND expires_at > now()`,
+      `SELECT kind, context FROM conversation_state WHERE user_id = $1 AND expires_at > now()`,
       [user.id]
     );
 
     if (stateRes.rowCount && stateRes.rowCount > 0) {
-      const pendingTitle = stateRes.rows[0].context.pending_title || 'New Task';
+      const stateKind = stateRes.rows[0].kind;
+      const stateContext = stateRes.rows[0].context || {};
+      const pendingTitle = stateContext.pending_title || 'New Task';
+      const recurrence = stateContext.recurrence;
       const lower = text.toLowerCase().trim();
 
       // If user says "skip", "no time", "open task", "none", "no", "later"
@@ -189,10 +192,45 @@ export class UpdateDispatcher {
         const res = await taskService.createTask({
           userId: user.id,
           title: pendingTitle,
+          recurrence,
           userTimezone: user.timezone,
           defaultReminderTime: user.default_reminder_time,
-          sourceMessageId: msg.message_id,
+          sourceMessageId: dbMessageId ? Number(dbMessageId) : undefined,
         });
+        await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
+        return;
+      }
+
+      // If user answers task/habit/note clarification textually
+      if (['task', 'to-do', 'todo', 'reminder'].includes(lower)) {
+        await pool.query('DELETE FROM conversation_state WHERE user_id = $1', [user.id]);
+        const res = await taskService.createTask({
+          userId: user.id,
+          title: pendingTitle,
+          recurrence,
+          userTimezone: user.timezone,
+          defaultReminderTime: user.default_reminder_time,
+          sourceMessageId: dbMessageId ? Number(dbMessageId) : undefined,
+        });
+        await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
+        return;
+      }
+
+      if (['habit', 'daily habit'].includes(lower)) {
+        await pool.query('DELETE FROM conversation_state WHERE user_id = $1', [user.id]);
+        const res = await habitService.logHabit({
+          userId: user.id,
+          habitName: pendingTitle,
+          value: 1,
+          unit: 'times',
+        });
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        return;
+      }
+
+      if (['note', 'reference note'].includes(lower)) {
+        await pool.query('DELETE FROM conversation_state WHERE user_id = $1', [user.id]);
+        const res = await taskService.saveNote(user.id, pendingTitle, pendingTitle, ['reference'], undefined, dbMessageId ? Number(dbMessageId) : undefined);
         await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
         return;
       }
@@ -210,9 +248,10 @@ export class UpdateDispatcher {
           title: pendingTitle,
           dueLocal: DateTime.fromJSDate(resolved.utcDate).setZone(user.timezone).toISO(),
           timeIsExplicit: resolved.timeIsExplicit,
+          recurrence,
           userTimezone: user.timezone,
           defaultReminderTime: user.default_reminder_time,
-          sourceMessageId: msg.message_id,
+          sourceMessageId: dbMessageId ? Number(dbMessageId) : undefined,
         });
         await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
         return;
@@ -234,7 +273,7 @@ export class UpdateDispatcher {
     }
 
     if (resilienceService.degradedModeActive) {
-      await taskService.saveNote(user.id, text, 'Saved Thought', null, msg.message_id);
+      await taskService.saveNote(user.id, text, 'Saved Thought', null, null, dbMessageId ? Number(dbMessageId) : undefined);
       await this.sendBotMessage(
         user.id,
         chatId,
@@ -263,12 +302,12 @@ export class UpdateDispatcher {
 
       // Execute extracted tool calls (max 5 per single message)
       for (const call of interpretResult.toolCalls.slice(0, 5)) {
-        await this.executeToolCall(user, chatId, call, msg.message_id);
+        await this.executeToolCall(user, chatId, call, dbMessageId ? Number(dbMessageId) : undefined);
       }
     } catch (err: any) {
       console.error('[UpdateDispatcher] LLM Pipeline Error:', err);
       // Fallback: Save as note in Degraded Mode
-      await taskService.saveNote(user.id, text, 'Saved Thought', null, msg.message_id);
+      await taskService.saveNote(user.id, text, 'Saved Thought', null, null, dbMessageId ? Number(dbMessageId) : undefined);
       await this.sendBotMessage(
         user.id,
         chatId,
@@ -436,6 +475,16 @@ export class UpdateDispatcher {
       case 'ask_clarification': {
         if (call.args.disambiguation_type === 'TASK_OR_NOTE_OR_HABIT') {
           const itemTitle = call.args.pending_title || 'Item';
+          await pool.query(
+            `
+            INSERT INTO conversation_state (user_id, kind, context, expires_at)
+            VALUES ($1, 'CLARIFY_KIND', $2, now() + interval '10 minutes')
+            ON CONFLICT (user_id) DO UPDATE
+            SET kind = EXCLUDED.kind, context = EXCLUDED.context, expires_at = EXCLUDED.expires_at;
+            `,
+            [user.id, JSON.stringify({ pending_title: itemTitle, question: call.args.question })]
+          );
+
           await this.sendBotMessage(
             user.id,
             chatId,
@@ -452,7 +501,7 @@ export class UpdateDispatcher {
         }
 
         const title = call.args.pending_title;
-        if (title || call.args.reason === 'missing_schedule_time') {
+        if (title || call.args.reason === 'missing_schedule_time' || call.args.disambiguation_type === 'SCHEDULE_TIME') {
           const taskTitle = title || 'New Task';
           await pool.query(
             `
@@ -461,7 +510,7 @@ export class UpdateDispatcher {
             ON CONFLICT (user_id) DO UPDATE
             SET kind = EXCLUDED.kind, context = EXCLUDED.context, expires_at = EXCLUDED.expires_at;
             `,
-            [user.id, JSON.stringify({ pending_title: taskTitle })]
+            [user.id, JSON.stringify({ pending_title: taskTitle, question: call.args.question })]
           );
 
           await this.sendBotMessage(
@@ -478,6 +527,15 @@ export class UpdateDispatcher {
             ]
           );
         } else {
+          await pool.query(
+            `
+            INSERT INTO conversation_state (user_id, kind, context, expires_at)
+            VALUES ($1, 'CLARIFY_GENERAL', $2, now() + interval '10 minutes')
+            ON CONFLICT (user_id) DO UPDATE
+            SET kind = EXCLUDED.kind, context = EXCLUDED.context, expires_at = EXCLUDED.expires_at;
+            `,
+            [user.id, JSON.stringify({ pending_title: call.args.pending_title || 'Item', question: call.args.question })]
+          );
           await this.sendBotMessage(user.id, chatId, `❓ <b>Clarification Needed:</b> ${call.args.question}`);
         }
         break;
@@ -536,14 +594,16 @@ export class UpdateDispatcher {
     telegramMsgId: number | undefined,
     kind: string,
     text: string
-  ): Promise<void> {
-    await pool.query(
+  ): Promise<string | null> {
+    const res = await pool.query(
       `
       INSERT INTO messages (user_id, direction, telegram_message_id, kind, text)
       VALUES ($1, $2, $3, $4, $5)
+      RETURNING id
       `,
       [userId, direction, telegramMsgId || null, kind, text]
     );
+    return res.rows[0]?.id ? String(res.rows[0].id) : null;
   }
 }
 
