@@ -38,6 +38,7 @@ Thumbs.db
 # Large Assets & Unneeded Repository Folders
 assets/
 03-ARCHIVE/
+02-WORK-LATER-ROADMAP/
 *.mp4
 *.mov
 *.avi
