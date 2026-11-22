@@ -22,6 +22,7 @@ import { visionService } from './vision.service.js';
 import { momService } from './mom.service.js';
 import { textProcessor } from './text_processor.js';
 import { dailySummaryService } from './daily.summary.service.js';
+import { memoryService } from './memory.service.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -769,6 +770,35 @@ export class UpdateDispatcher {
       case 'view_daily_summary': {
         const text = await dailySummaryService.buildSummary(user, call.args.mode || 'INSTANT');
         await this.sendBotMessage(user.id, chatId, text);
+        break;
+      }
+
+      case 'store_memory': {
+        const res = await memoryService.remember(
+          user.id,
+          call.args.key_phrase,
+          call.args.content,
+          call.args.category || 'GENERAL'
+        );
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'recall_memory': {
+        const res = await memoryService.recall(user.id, call.args.query);
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'forget_memory': {
+        const res = await memoryService.forget(user.id, call.args.query);
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'list_memories': {
+        const res = await memoryService.listMemories(user.id, call.args.category);
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
         break;
       }
 

@@ -8,6 +8,7 @@ import { circleService } from './circle.service.js';
 import { calendarService } from './calendar.service.js';
 import { momService } from './mom.service.js';
 import { dailySummaryService } from './daily.summary.service.js';
+import { memoryService } from './memory.service.js';
 
 export interface CommandResponse {
   text: string;
@@ -102,6 +103,11 @@ export class CommandRouter {
       case '/mom': {
         const res = await momService.activateMomMode(user.id);
         return { text: res.text };
+      }
+
+      case '/memory': {
+        const res = await memoryService.listMemories(user.id);
+        return { text: res.formattedText };
       }
 
       case '/settings':

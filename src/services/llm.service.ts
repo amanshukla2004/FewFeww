@@ -623,6 +623,70 @@ export class LlmService {
       {
         type: 'function',
         function: {
+          name: 'store_memory',
+          description:
+            'Store a personal fact, preference, detail, or credential in long-term AI memory (e.g. "remember that my car license plate is KA-01-MJ-1234", "remember my wifi password is XYZ", "remember that I prefer window seats").',
+          parameters: {
+            type: 'object',
+            properties: {
+              key_phrase: { type: 'string', description: 'The subject/topic being remembered (e.g. "car license plate", "wifi password", "travel preference")' },
+              content: { type: 'string', description: 'The specific fact or information to remember' },
+              category: {
+                type: 'string',
+                enum: ['PERSONAL', 'PREFERENCE', 'CREDENTIAL', 'FACT', 'GENERAL'],
+                description: 'Optional category for organizing memories',
+              },
+            },
+            required: ['key_phrase', 'content'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'recall_memory',
+          description:
+            'Recall or retrieve a personal fact or memory previously taught to the assistant (e.g. "what is my car license plate?", "what is my wifi password?", "what do I like to eat?").',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'The question or subject to recall from memory' },
+            },
+            required: ['query'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'forget_memory',
+          description:
+            'Delete or forget a previously saved memory (e.g. "forget my wifi password", "delete memory about car license plate").',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'The subject or phrase to forget' },
+            },
+            required: ['query'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'list_memories',
+          description: 'List all stored AI memories for the user (e.g. "show my memories", "list what you remember about me").',
+          parameters: {
+            type: 'object',
+            properties: {
+              category: { type: 'string', description: 'Optional category filter' },
+            },
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'out_of_scope',
           description: 'Call when message is conversational chit-chat, a joke, or completely unrelated to personal tasks/notes.',
           parameters: {
