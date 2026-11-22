@@ -2,6 +2,7 @@ import { buildServer } from './server.js';
 import { config } from './config.js';
 import { pool } from './db/pool.js';
 import { reminderWorker } from './services/reminder.worker.js';
+import { morningDigest } from './services/morning.digest.js';
 
 async function start() {
   const app = buildServer();
@@ -13,6 +14,9 @@ async function start() {
 
     // Start Persistent Scheduler (10s interval)
     reminderWorker.start(10000);
+
+    // Start Daily Morning Plan Poller (60s interval)
+    morningDigest.start(60000);
 
     await app.listen({ port: config.port, host: '0.0.0.0' });
     console.log(`\n🚀 FewFeww Backend running on port ${config.port}`);
@@ -28,6 +32,7 @@ async function start() {
     process.on(sig, async () => {
       console.log(`\nReceived ${sig}, shutting down gracefully...`);
       reminderWorker.stop();
+      morningDigest.stop();
       await app.close();
       await pool.end();
       process.exit(0);

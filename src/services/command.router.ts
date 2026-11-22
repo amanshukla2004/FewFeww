@@ -1,6 +1,7 @@
 import { User } from '../db/user.repo.js';
 import { onboardingService } from './onboarding.service.js';
 import { TelegramButton } from './telegram.client.js';
+import { morningDigest } from './morning.digest.js';
 
 export interface CommandResponse {
   text: string;
@@ -67,14 +68,15 @@ export class CommandRouter {
           ],
         };
 
-      case '/today':
-      case '/list':
-        return {
-          text:
-            `📋 <b>Your Tasks</b>\n\n` +
-            `You have no open tasks scheduled right now.\n\n` +
-            `Send me a task or forward a message to schedule one!`,
-        };
+      case '/today': {
+        const text = await morningDigest.buildTodaySummary(user);
+        return { text };
+      }
+
+      case '/list': {
+        const text = await morningDigest.buildUpcomingList(user);
+        return { text };
+      }
 
       case '/pause':
         return {

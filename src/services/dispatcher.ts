@@ -6,6 +6,8 @@ import { commandRouter } from './command.router.js';
 import { taskService } from './task.service.js';
 import { llmService } from './llm.service.js';
 import { callbackRouter } from './callback.router.js';
+import { searchService } from './search.service.js';
+import { morningDigest } from './morning.digest.js';
 import { pool } from '../db/pool.js';
 
 export class UpdateDispatcher {
@@ -193,6 +195,24 @@ export class UpdateDispatcher {
       case 'complete_task': {
         const res = await taskService.completeTask(user.id, call.args.task_id, call.args.text_hint);
         await this.tg.sendMessage(chatId, res.text, res.keyboard);
+        break;
+      }
+
+      case 'drop_task': {
+        const res = await taskService.dropTask(user.id, call.args.task_id, call.args.text_hint);
+        await this.tg.sendMessage(chatId, res.text, res.keyboard);
+        break;
+      }
+
+      case 'search': {
+        const res = await searchService.search(user.id, call.args.query, call.args.scope);
+        await this.tg.sendMessage(chatId, res.formattedText);
+        break;
+      }
+
+      case 'list_items': {
+        const text = await morningDigest.buildUpcomingList(user);
+        await this.tg.sendMessage(chatId, text);
         break;
       }
 

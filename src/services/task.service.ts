@@ -188,6 +188,72 @@ export class TaskService {
     }
   }
 
+  async dropTask(userId: string, taskId?: number, textHint?: string): Promise<TaskResult> {
+    let targetId = taskId;
+
+    if (!targetId && textHint) {
+      const match = await pool.query(
+        `
+        SELECT id FROM tasks 
+        WHERE user_id = $1 AND status = 'OPEN' AND similarity(title, $2) > 0.3
+        ORDER BY similarity(title, $2) DESC 
+        LIMIT 1;
+        `,
+        [userId, textHint]
+      );
+      if (match.rowCount && match.rowCount > 0) {
+        targetId = Number(match.rows[0].id);
+      }
+    }
+
+    if (!targetId) {
+      return {
+        text: `❓ Couldn't identify which task to drop. Try /list or specify the task title.`,
+      };
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const updateRes = await client.query(
+        `
+        UPDATE tasks 
+        SET status = 'DROPPED', updated_at = now()
+        WHERE id = $1 AND user_id = $2
+        RETURNING id, title;
+        `,
+        [String(targetId), userId]
+      );
+
+      if (updateRes.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return { text: `❓ Task #${targetId} not found.` };
+      }
+
+      await client.query(
+        `UPDATE reminders SET status = 'CANCELLED' WHERE task_id = $1 AND status = 'SCHEDULED'`,
+        [String(targetId)]
+      );
+
+      await client.query(
+        `INSERT INTO events (user_id, type, entity_type, entity_id) VALUES ($1, 'task_dropped', 'task', $2)`,
+        [userId, String(targetId)]
+      );
+
+      await client.query('COMMIT');
+
+      return {
+        text: `🗑 <b>Dropped task:</b> ${updateRes.rows[0].title}`,
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   async undoTaskCreation(userId: string, taskId: string): Promise<string> {
     const client = await pool.connect();
     try {
