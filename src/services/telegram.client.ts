@@ -48,6 +48,33 @@ export class TelegramClient {
     });
   }
 
+  async sendDocument(
+    chatId: number | string,
+    fileBuffer: Buffer | Uint8Array,
+    filename: string,
+    caption?: string
+  ): Promise<any> {
+    const formData = new FormData();
+    formData.append('chat_id', String(chatId));
+    formData.append('document', new Blob([fileBuffer]), filename);
+    if (caption) {
+      formData.append('caption', caption);
+      formData.append('parse_mode', 'HTML');
+    }
+
+    const res = await fetch(`${this.baseUrl}/sendDocument`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Telegram API Error [sendDocument]: ${res.status} ${err}`);
+    }
+
+    return res.json();
+  }
+
   private async post(method: string, payload: any): Promise<any> {
     const res = await fetch(`${this.baseUrl}/${method}`, {
       method: 'POST',

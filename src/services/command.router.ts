@@ -2,6 +2,7 @@ import { User } from '../db/user.repo.js';
 import { onboardingService } from './onboarding.service.js';
 import { TelegramButton } from './telegram.client.js';
 import { morningDigest } from './morning.digest.js';
+import { privacyService } from './privacy.service.js';
 
 export interface CommandResponse {
   text: string;
@@ -93,12 +94,14 @@ export class CommandRouter {
           ],
         };
 
-      case '/export':
+      case '/export': {
+        await privacyService.exportAndSend(user, user.telegram_chat_id);
         return {
           text:
-            `📦 <b>Export Your Data</b>\n\n` +
-            `Your data belongs to you. Generating full export in JSON and CSV format... (Ready in Step 13)`,
+            `📦 <b>Data Export Complete</b>\n\n` +
+            `Your complete account history, tasks, notes, and reminders have been uploaded as JSON and CSV files above.`,
         };
+      }
 
       case '/deleteme':
         return {

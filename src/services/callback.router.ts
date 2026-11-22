@@ -2,6 +2,7 @@ import { pool } from '../db/pool.js';
 import { userRepo, User } from '../db/user.repo.js';
 import { telegram, TelegramClient } from './telegram.client.js';
 import { nudgeService } from './nudge.service.js';
+import { privacyService } from './privacy.service.js';
 import { DateTime } from 'luxon';
 
 export class CallbackRouter {
@@ -43,6 +44,26 @@ export class CallbackRouter {
     if (data === 'cfg:keep') {
       if (messageId) {
         await this.tg.editMessageText(chatId, messageId, '👌 Keeping your current notification settings.');
+      }
+      return;
+    }
+
+    // 4. Account Deletion Callbacks (Two-Tap Confirmation)
+    if (data === 'c:del_confirm') {
+      await privacyService.deleteUserCascade(user.id);
+      if (messageId) {
+        await this.tg.editMessageText(
+          chatId,
+          messageId,
+          `🗑 <b>Account & Data Deleted</b>\n\nAll your tasks, reminders, notes, and messages have been permanently purged from our database. Thank you for trying FewFeww.`
+        );
+      }
+      return;
+    }
+
+    if (data === 'c:no') {
+      if (messageId) {
+        await this.tg.editMessageText(chatId, messageId, '👌 Deletion cancelled. Your tasks and account are safe.');
       }
       return;
     }
