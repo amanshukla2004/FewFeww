@@ -9,6 +9,8 @@ import { callbackRouter } from './callback.router.js';
 import { searchService } from './search.service.js';
 import { morningDigest } from './morning.digest.js';
 import { resilienceService } from './resilience.service.js';
+import { dateResolver } from './date.resolver.js';
+import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
 export class UpdateDispatcher {
@@ -124,6 +126,55 @@ export class UpdateDispatcher {
       return;
     }
 
+    // 2.2 Active Clarification State check (e.g. user answering when to schedule)
+    const stateRes = await pool.query(
+      `SELECT context FROM conversation_state WHERE user_id = $1 AND kind = 'CLARIFY_TIME' AND expires_at > now()`,
+      [user.id]
+    );
+
+    if (stateRes.rowCount && stateRes.rowCount > 0) {
+      const pendingTitle = stateRes.rows[0].context.pending_title || 'New Task';
+      const lower = text.toLowerCase().trim();
+
+      // If user says "skip", "no time", "open task", "none", "no", "later"
+      if (['skip', 'no', 'none', 'no time', 'open task', 'later', 'cancel', 'dont set time', 'just save'].includes(lower)) {
+        await pool.query('DELETE FROM conversation_state WHERE user_id = $1', [user.id]);
+        const res = await taskService.createTask({
+          userId: user.id,
+          title: pendingTitle,
+          userTimezone: user.timezone,
+          defaultReminderTime: user.default_reminder_time,
+          sourceMessageId: msg.message_id,
+        });
+        await this.tg.sendMessage(chatId, res.text, res.keyboard);
+        return;
+      }
+
+      // Try resolving user text as date/time
+      const resolved = dateResolver.resolveProposed(text, false, {
+        timezone: user.timezone,
+        defaultReminderTime: user.default_reminder_time,
+      });
+
+      if (resolved.kind === 'RESOLVED') {
+        await pool.query('DELETE FROM conversation_state WHERE user_id = $1', [user.id]);
+        const res = await taskService.createTask({
+          userId: user.id,
+          title: pendingTitle,
+          dueLocal: DateTime.fromJSDate(resolved.utcDate).setZone(user.timezone).toISO(),
+          timeIsExplicit: resolved.timeIsExplicit,
+          userTimezone: user.timezone,
+          defaultReminderTime: user.default_reminder_time,
+          sourceMessageId: msg.message_id,
+        });
+        await this.tg.sendMessage(chatId, res.text, res.keyboard);
+        return;
+      }
+
+      // If text doesn't resolve as a date and isn't skip, remove state and continue
+      await pool.query('DELETE FROM conversation_state WHERE user_id = $1', [user.id]);
+    }
+
     // 2.5 Rate Limit & Degraded Mode Safety Net
     const rateCheck = resilienceService.checkRateLimit(user.id);
     if (rateCheck.isLimited) {
@@ -237,7 +288,34 @@ export class UpdateDispatcher {
       }
 
       case 'ask_clarification': {
-        await this.tg.sendMessage(chatId, `❓ <b>Clarification Needed:</b> ${call.args.question}`);
+        const title = call.args.pending_title;
+        if (title || call.args.reason === 'missing_schedule_time') {
+          const taskTitle = title || 'New Task';
+          await pool.query(
+            `
+            INSERT INTO conversation_state (user_id, kind, context, expires_at)
+            VALUES ($1, 'CLARIFY_TIME', $2, now() + interval '10 minutes')
+            ON CONFLICT (user_id) DO UPDATE
+            SET kind = EXCLUDED.kind, context = EXCLUDED.context, expires_at = EXCLUDED.expires_at;
+            `,
+            [user.id, JSON.stringify({ pending_title: taskTitle })]
+          );
+
+          await this.tg.sendMessage(
+            chatId,
+            `❓ <b>When would you like to schedule:</b> <i>"${taskTitle}"</i>?\n\n` +
+            `Tap an option below, reply with a time (e.g. <i>"tomorrow 3pm"</i>), or say <i>"skip"</i> to save it as an open task without a deadline.`,
+            [
+              [
+                { text: '☀️ Tomorrow 9am', callback_data: 'c:time:tom' },
+                { text: '📅 Friday 9am', callback_data: 'c:time:fri' },
+              ],
+              [{ text: '📝 Save to Open Tasks (No Time)', callback_data: 'c:time:skip' }],
+            ]
+          );
+        } else {
+          await this.tg.sendMessage(chatId, `❓ <b>Clarification Needed:</b> ${call.args.question}`);
+        }
         break;
       }
 

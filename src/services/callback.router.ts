@@ -3,6 +3,7 @@ import { userRepo, User } from '../db/user.repo.js';
 import { telegram, TelegramClient } from './telegram.client.js';
 import { nudgeService } from './nudge.service.js';
 import { privacyService } from './privacy.service.js';
+import { taskService } from './task.service.js';
 import { DateTime } from 'luxon';
 
 export class CallbackRouter {
@@ -64,6 +65,96 @@ export class CallbackRouter {
     if (data === 'c:no') {
       if (messageId) {
         await this.tg.editMessageText(chatId, messageId, '👌 Deletion cancelled. Your tasks and account are safe.');
+      }
+      return;
+    }
+
+    // 5. Clarify Time Action Callbacks (c:time:<action>)
+    if (data.startsWith('c:time:')) {
+      const action = data.replace('c:time:', '');
+      await this.handleClarifyTimeCallback(user, chatId, messageId, action);
+      return;
+    }
+  }
+
+  private async handleClarifyTimeCallback(
+    user: User,
+    chatId: number | string,
+    messageId: number | undefined,
+    action: string
+  ): Promise<void> {
+    const stateRes = await pool.query(
+      `SELECT context FROM conversation_state WHERE user_id = $1 AND kind = 'CLARIFY_TIME'`,
+      [user.id]
+    );
+
+    const pendingTitle = stateRes.rows[0]?.context?.pending_title || 'New Task';
+    await pool.query('DELETE FROM conversation_state WHERE user_id = $1', [user.id]);
+
+    if (action === 'skip') {
+      await taskService.createTask({
+        userId: user.id,
+        title: pendingTitle,
+        userTimezone: user.timezone,
+        defaultReminderTime: user.default_reminder_time,
+      });
+
+      const reply = `📝 <b>Saved in Open Tasks:</b> ${pendingTitle}\n<i>(No deadline set. You can view it anytime with /list)</i>`;
+      if (messageId) {
+        await this.tg.editMessageText(chatId, messageId, reply);
+      } else {
+        await this.tg.sendMessage(chatId, reply);
+      }
+      return;
+    }
+
+    if (action === 'tom') {
+      const [defH, defM] = user.default_reminder_time.split(':').map((s) => parseInt(s, 10));
+      const tomorrow = DateTime.now()
+        .setZone(user.timezone)
+        .plus({ days: 1 })
+        .set({ hour: defH, minute: defM, second: 0, millisecond: 0 });
+
+      await taskService.createTask({
+        userId: user.id,
+        title: pendingTitle,
+        dueLocal: tomorrow.toISO(),
+        timeIsExplicit: false,
+        userTimezone: user.timezone,
+        defaultReminderTime: user.default_reminder_time,
+      });
+
+      const reply = `✅ <b>Scheduled:</b> ${pendingTitle}\n⏰ <b>Due:</b> ${tomorrow.toFormat('cccc, dd LLL yyyy, hh:mm a')}`;
+      if (messageId) {
+        await this.tg.editMessageText(chatId, messageId, reply);
+      } else {
+        await this.tg.sendMessage(chatId, reply);
+      }
+      return;
+    }
+
+    if (action === 'fri') {
+      const [defH, defM] = user.default_reminder_time.split(':').map((s) => parseInt(s, 10));
+      let fri = DateTime.now().setZone(user.timezone).plus({ days: 1 });
+      while (fri.weekday !== 5) {
+        fri = fri.plus({ days: 1 });
+      }
+      fri = fri.set({ hour: defH, minute: defM, second: 0, millisecond: 0 });
+
+      await taskService.createTask({
+        userId: user.id,
+        title: pendingTitle,
+        dueLocal: fri.toISO(),
+        timeIsExplicit: false,
+        userTimezone: user.timezone,
+        defaultReminderTime: user.default_reminder_time,
+      });
+
+      const reply = `✅ <b>Scheduled:</b> ${pendingTitle}\n⏰ <b>Due:</b> ${fri.toFormat('cccc, dd LLL yyyy, hh:mm a')}`;
+      if (messageId) {
+        await this.tg.editMessageText(chatId, messageId, reply);
+      } else {
+        await this.tg.sendMessage(chatId, reply);
       }
       return;
     }

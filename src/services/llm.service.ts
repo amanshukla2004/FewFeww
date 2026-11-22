@@ -126,12 +126,17 @@ export class LlmService {
         type: 'function',
         function: {
           name: 'ask_clarification',
-          description: 'Ask the user a quick clarification question if the action or date is genuinely ambiguous.',
+          description:
+            'Ask the user for clarification when they explicitly ask to schedule or remind about a task but provide NO date and NO time, or if the action is genuinely ambiguous.',
           parameters: {
             type: 'object',
             properties: {
               question: { type: 'string', description: 'Concise question to present to user' },
-              reason: { type: 'string', description: 'Reason clarification is needed' },
+              reason: { type: 'string', description: 'Reason clarification is needed, e.g. "missing_schedule_time"' },
+              pending_title: {
+                type: 'string',
+                description: 'The clean task title being scheduled (e.g. "Dentist appointment")',
+              },
             },
             required: ['question'],
           },
@@ -175,6 +180,8 @@ Current local date and time: ${formattedNow} (${user.timezone}).
 Default reminder time: ${user.default_reminder_time}.
 Use the provided current local date and time to resolve words like "tomorrow", "Friday", "in 30 mins".
 If the user gives a date but no specific time, set time_is_explicit to false.
+If the user explicitly asks to schedule or set an appointment or reminder for a task, but specifies NO date and NO time at all (e.g. "schedule dentist appointment", "remind me to pay bills"), call ask_clarification with reason='missing_schedule_time', pending_title='<Task Title>', and question='When would you like to schedule this? (e.g. "tomorrow 3pm" or "Friday")'.
+If the user simply states an item without scheduling verbs (e.g. "buy milk", "read book"), use create_task without a due date.
 One message may contain up to 5 actions. Call a tool once per action.
 If the action or date is genuinely ambiguous, call ask_clarification once.
 If the message is chit-chat, trivia, or not about tasks/reminders/notes, call out_of_scope.
