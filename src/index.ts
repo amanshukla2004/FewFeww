@@ -7,6 +7,7 @@ import { resilienceService } from './services/resilience.service.js';
 
 async function start() {
   const app = buildServer();
+  let reaperInterval: NodeJS.Timeout | null = null;
 
   try {
     // Verify DB connectivity on boot
@@ -20,7 +21,7 @@ async function start() {
     morningDigest.start(60000);
 
     // Start 1-Minute Stuck Job Reaper
-    const reaperInterval = setInterval(async () => {
+    reaperInterval = setInterval(async () => {
       try {
         const { reapedReminders, reapedInbox } = await resilienceService.runReaperCycle();
         if (reapedReminders > 0 || reapedInbox > 0) {
@@ -44,7 +45,7 @@ async function start() {
   for (const sig of closeSignals) {
     process.on(sig, async () => {
       console.log(`\nReceived ${sig}, shutting down gracefully...`);
-      clearInterval(reaperInterval);
+      if (reaperInterval) clearInterval(reaperInterval);
       reminderWorker.stop();
       morningDigest.stop();
       await app.close();

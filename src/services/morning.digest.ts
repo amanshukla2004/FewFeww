@@ -64,7 +64,9 @@ export class MorningDigest {
       quiet_end: r.quiet_end,
       morning_plan_enabled: r.morning_plan_enabled,
       morning_plan_time: r.morning_plan_time,
+      last_morning_plan_on: r.last_morning_plan_on,
       evening_checkin_enabled: r.evening_checkin_enabled,
+      last_evening_on: r.last_evening_on,
       nudges_enabled: r.nudges_enabled,
       nudges_paused_until: r.nudges_paused_until,
       daily_proactive_cap: r.daily_proactive_cap,
@@ -154,7 +156,7 @@ export class MorningDigest {
       [user.id]
     );
 
-    const hasItems = overdueRes.rowCount > 0 || todayRes.rowCount > 0 || noDueRes.rowCount > 0;
+    const hasItems = (overdueRes.rowCount ?? 0) > 0 || (todayRes.rowCount ?? 0) > 0 || (noDueRes.rowCount ?? 0) > 0;
 
     let text = `☀️ <b>Good morning, ${name}!</b>\n\n`;
 
@@ -164,7 +166,7 @@ export class MorningDigest {
     }
 
     // Overdue Section (Stage 2 Nudge Ladder)
-    if (overdueRes.rowCount > 0) {
+    if ((overdueRes.rowCount ?? 0) > 0) {
       text += `⚠️ <b>Overdue Items:</b>\n`;
       overdueRes.rows.forEach((t) => {
         const timeStr = DateTime.fromJSDate(t.due_at).setZone(user.timezone).toFormat('dd LLL, hh:mm a');
@@ -174,7 +176,7 @@ export class MorningDigest {
     }
 
     // Today's Agenda
-    if (todayRes.rowCount > 0) {
+    if ((todayRes.rowCount ?? 0) > 0) {
       text += `📌 <b>Today's Agenda:</b>\n`;
       todayRes.rows.forEach((t) => {
         let timeStr = 'Today';
@@ -187,7 +189,7 @@ export class MorningDigest {
     }
 
     // Other Open Tasks
-    if (noDueRes.rowCount > 0) {
+    if ((noDueRes.rowCount ?? 0) > 0) {
       text += `📝 <b>Other Open Items:</b>\n`;
       noDueRes.rows.forEach((t) => {
         text += `• ${t.title}\n`;

@@ -56,7 +56,7 @@ export class TelegramClient {
   ): Promise<any> {
     const formData = new FormData();
     formData.append('chat_id', String(chatId));
-    formData.append('document', new Blob([fileBuffer]), filename);
+    formData.append('document', new Blob([fileBuffer as any]), filename);
     if (caption) {
       formData.append('caption', caption);
       formData.append('parse_mode', 'HTML');

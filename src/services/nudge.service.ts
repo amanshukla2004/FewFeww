@@ -58,7 +58,7 @@ export class NudgeService {
       [userId]
     );
 
-    if (res.rowCount < 3) return false;
+    if ((res.rowCount ?? 0) < 3) return false;
     return res.rows.every((row) => row.status === 'SENT' && !row.acked_at);
   }
 

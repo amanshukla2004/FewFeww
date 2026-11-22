@@ -41,7 +41,7 @@ describe('5-Stage Nudge Ladder Service', () => {
       nudge_stage: 0,
       fire_at: r0.fire_at,
       status: 'SENT',
-      retry_count: 0,
+      attempt_count: 0,
     });
 
     const nextRem = await pool.query(
