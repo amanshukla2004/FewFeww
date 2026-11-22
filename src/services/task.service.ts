@@ -9,6 +9,7 @@ export interface CreateTaskParams {
   details?: string | null;
   dueLocal?: string | null;
   timeIsExplicit?: boolean;
+  recurrence?: string | null;
   userTimezone: string;
   defaultReminderTime: string;
   sourceMessageId?: number | null;
@@ -22,7 +23,7 @@ export interface TaskResult {
 
 export class TaskService {
   async createTask(params: CreateTaskParams): Promise<TaskResult> {
-    const { userId, title, details, dueLocal, timeIsExplicit, userTimezone, defaultReminderTime, sourceMessageId } = params;
+    const { userId, title, details, dueLocal, timeIsExplicit, recurrence, userTimezone, defaultReminderTime, sourceMessageId } = params;
 
     let dueUtc: Date | null = null;
     let hasExplicitTime = false;
@@ -43,6 +44,15 @@ export class TaskService {
       dueUtc = resolved.utcDate;
       hasExplicitTime = resolved.timeIsExplicit;
       localFormatted = DateTime.fromJSDate(dueUtc).setZone(userTimezone).toFormat('cccc, dd LLL yyyy, hh:mm a');
+    } else if (recurrence) {
+      // Default initial run for recurring task
+      const [h, m] = defaultReminderTime.split(':').map((s) => parseInt(s, 10));
+      let nextRun = DateTime.now().setZone(userTimezone).set({ hour: h, minute: m, second: 0, millisecond: 0 });
+      if (nextRun.toMillis() <= Date.now()) {
+        nextRun = nextRun.plus({ days: 1 });
+      }
+      dueUtc = nextRun.toUTC().toJSDate();
+      localFormatted = nextRun.toFormat('cccc, dd LLL yyyy, hh:mm a');
     }
 
     const client = await pool.connect();
@@ -52,11 +62,11 @@ export class TaskService {
       // 1. Insert Task
       const taskRes = await client.query(
         `
-        INSERT INTO tasks (user_id, title, details, due_at, due_has_time, source_message_id, status)
-        VALUES ($1, $2, $3, $4, $5, $6, 'OPEN')
+        INSERT INTO tasks (user_id, title, details, due_at, due_has_time, recurrence, source_message_id, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 'OPEN')
         RETURNING id, title, due_at;
         `,
-        [userId, title.trim(), details || null, dueUtc, hasExplicitTime, sourceMessageId || null]
+        [userId, title.trim(), details || null, dueUtc, hasExplicitTime, recurrence ? JSON.stringify({ freq: recurrence }) : null, sourceMessageId || null]
       );
 
       const taskId = String(taskRes.rows[0].id);
@@ -88,6 +98,9 @@ export class TaskService {
         reply += `\n⏰ <b>Due:</b> ${localFormatted}`;
       } else {
         reply += `\n📝 <i>No deadline set (added to Open Tasks)</i>`;
+      }
+      if (recurrence) {
+        reply += `\n🔁 <b>Repeats:</b> ${recurrence.toLowerCase()}`;
       }
 
       const keyboard: TelegramButton[][] = [

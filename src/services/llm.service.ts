@@ -41,6 +41,11 @@ export class LlmService {
                 type: 'boolean',
                 description: 'true if the user gave an explicit hour/minute; false if date-only (e.g. "Friday" or "Nov 20")',
               },
+              recurrence: {
+                type: 'string',
+                enum: ['DAILY', 'WEEKDAYS', 'WEEKLY', 'MONTHLY'],
+                description: 'Optional recurrence interval if repeated (e.g. "DAILY" for daily, "WEEKLY" for weekly)',
+              },
               details: { type: 'string', description: 'Optional extra notes or context (omit if none; never output null)' },
             },
             required: ['title'],
@@ -58,6 +63,11 @@ export class LlmService {
               text: { type: 'string', description: 'What to remind the user about' },
               remind_local: { type: 'string', description: 'Local ISO datetime string in user timezone' },
               time_is_explicit: { type: 'boolean', description: 'true if specific time given' },
+              recurrence: {
+                type: 'string',
+                enum: ['DAILY', 'WEEKDAYS', 'WEEKLY', 'MONTHLY'],
+                description: 'Optional recurrence interval if repeated (e.g. "DAILY" for daily, "WEEKLY" for weekly)',
+              },
             },
             required: ['text'],
           },
@@ -180,6 +190,14 @@ Current local date and time: ${formattedNow} (${user.timezone}).
 Default reminder time: ${user.default_reminder_time}.
 Use the provided current local date and time to resolve words like "tomorrow", "Friday", "in 30 mins".
 If the user gives a date but no specific time, set time_is_explicit to false.
+If the user mentions repeating frequency (e.g. "daily", "every day", "each morning"), set recurrence to DAILY or WEEKLY.
+
+Conversation Memory & Context Rules:
+- Recent message history is provided. You MUST examine prior messages to understand context!
+- If the assistant previously asked for a time or detail (e.g. "What time each day should I remind you about DSA questions?"), and the user replies with a time (e.g. "10 AM") or confirmation, DO NOT ask for clarification again! Execute create_task immediately with the task title from the prior turn, the time from this turn, and appropriate recurrence (e.g. DAILY).
+- If the user says "reminder", "task", "i told you about this", or refers to earlier messages, look at the message history to fulfill their request. Never call out_of_scope when the user is trying to set up or manage tasks.
+- Avoid repeated clarification questions. If enough information exists across turns to create a task, execute create_task!
+
 If the user explicitly asks to schedule or set an appointment or reminder for a task, but specifies NO date and NO time at all (e.g. "schedule dentist appointment", "remind me to pay bills"), call ask_clarification with reason='missing_schedule_time', pending_title='<Task Title>', and question='When would you like to schedule this? (e.g. "tomorrow 3pm" or "Friday")'.
 If the user simply states an item without scheduling verbs (e.g. "buy milk", "read book"), use create_task without a due date.
 One message may contain up to 5 actions. Call a tool once per action.
@@ -195,7 +213,7 @@ ${openTasksText}`;
     ];
 
     // Add recent history for conversational context
-    for (const h of messageHistory.slice(-4)) {
+    for (const h of messageHistory.slice(-8)) {
       messages.push({
         role: h.role,
         content: h.text,

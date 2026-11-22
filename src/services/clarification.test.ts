@@ -122,4 +122,40 @@ describe('Option A Clarification Loop & Open Task Fallback', () => {
     expect(taskCheck.rows[0].title).toBe('Eye checkup');
     expect(taskCheck.rows[0].due_at).not.toBeNull();
   });
+
+  it('logs OUTBOUND messages to messages table when bot replies', async () => {
+    await (dispatcher as any).sendBotMessage(dbUserId, testUserId, 'Hello from bot');
+
+    const msgCheck = await pool.query(
+      `SELECT direction, text FROM messages WHERE user_id = $1 AND direction = 'OUTBOUND'`,
+      [dbUserId]
+    );
+    expect(msgCheck.rowCount).toBeGreaterThanOrEqual(1);
+    expect(msgCheck.rows[0].text).toBe('Hello from bot');
+  });
+
+  it('persists task recurrence when executeToolCall receives recurrence', async () => {
+    const user = await userRepo.findById(dbUserId);
+    await (dispatcher as any).executeToolCall(user, testUserId, {
+      name: 'create_task',
+      args: {
+        title: 'DSA challenge questions',
+        recurrence: 'DAILY',
+        due_local: '2026-11-23T10:00:00',
+        time_is_explicit: true,
+      },
+    });
+
+    const taskRes = await pool.query(
+      `SELECT title, recurrence, due_at FROM tasks WHERE user_id = $1 AND title = 'DSA challenge questions'`,
+      [dbUserId]
+    );
+    expect(taskRes.rowCount).toBe(1);
+    expect(taskRes.rows[0].recurrence).toEqual({ freq: 'DAILY' });
+    expect(mockTg.sendMessage).toHaveBeenCalledWith(
+      testUserId,
+      expect.stringContaining('Repeats:</b> daily'),
+      expect.any(Array)
+    );
+  });
 });

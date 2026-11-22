@@ -68,21 +68,21 @@ export class UpdateDispatcher {
     // Handle Onboarding Callbacks
     if (data === 'ob:consent') {
       const step = await onboardingService.handleConsent(user);
-      await this.tg.sendMessage(chatId, step.text, step.keyboard);
+      await this.sendBotMessage(user.id, chatId, step.text, step.keyboard);
       return;
     }
 
     if (data.startsWith('ob:tz:')) {
       const tz = data.replace('ob:tz:', '');
       const step = await onboardingService.handleTimezone(user, tz);
-      await this.tg.sendMessage(chatId, step.text, step.keyboard);
+      await this.sendBotMessage(user.id, chatId, step.text, step.keyboard);
       return;
     }
 
     if (data.startsWith('ob:time:')) {
       const time = data.replace('ob:time:', '');
       const step = await onboardingService.handleDefaultTime(user, time);
-      await this.tg.sendMessage(chatId, step.text, step.keyboard);
+      await this.sendBotMessage(user.id, chatId, step.text, step.keyboard);
       return;
     }
 
@@ -92,8 +92,9 @@ export class UpdateDispatcher {
       const undoMsg = await taskService.undoTaskCreation(user.id, taskId);
       if (cq.message?.message_id) {
         await this.tg.editMessageText(chatId, cq.message.message_id, undoMsg);
+        await this.logMessage(user.id, 'OUTBOUND', cq.message.message_id, 'TEXT', undoMsg);
       } else {
-        await this.tg.sendMessage(chatId, undoMsg);
+        await this.sendBotMessage(user.id, chatId, undoMsg);
       }
       return;
     }
@@ -109,20 +110,23 @@ export class UpdateDispatcher {
 
     const { user } = await userRepo.findOrCreate(from.id, chatId, from.first_name, from.language_code);
 
-    // Save message log
+    // Fetch conversation history BEFORE logging the current message to prevent duplication
+    const messageHistory = await this.getRecentMessageHistory(user.id, 8);
+
+    // Save inbound message log
     await this.logMessage(user.id, 'INBOUND', msg.message_id, 'TEXT', text);
 
     // 1. Command Routing (e.g. /start, /help, /settings)
     if (text.startsWith('/')) {
       const res = await commandRouter.handleCommand(user, text);
-      await this.tg.sendMessage(chatId, res.text, res.keyboard);
+      await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
       return;
     }
 
     // 2. Strict Onboarding Gate: If not ACTIVE, prompt user to finish onboarding
     if (user.onboarding_state !== 'ACTIVE') {
       const prompt = onboardingService.getPendingStepPrompt(user);
-      await this.tg.sendMessage(chatId, prompt.text, prompt.keyboard);
+      await this.sendBotMessage(user.id, chatId, prompt.text, prompt.keyboard);
       return;
     }
 
@@ -146,7 +150,7 @@ export class UpdateDispatcher {
           defaultReminderTime: user.default_reminder_time,
           sourceMessageId: msg.message_id,
         });
-        await this.tg.sendMessage(chatId, res.text, res.keyboard);
+        await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
         return;
       }
 
@@ -167,18 +171,19 @@ export class UpdateDispatcher {
           defaultReminderTime: user.default_reminder_time,
           sourceMessageId: msg.message_id,
         });
-        await this.tg.sendMessage(chatId, res.text, res.keyboard);
+        await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
         return;
       }
 
-      // If text doesn't resolve as a date and isn't skip, remove state and continue
+      // If text doesn't resolve as a date and isn't skip, remove state and continue to LLM
       await pool.query('DELETE FROM conversation_state WHERE user_id = $1', [user.id]);
     }
 
     // 2.5 Rate Limit & Degraded Mode Safety Net
     const rateCheck = resilienceService.checkRateLimit(user.id);
     if (rateCheck.isLimited) {
-      await this.tg.sendMessage(
+      await this.sendBotMessage(
+        user.id,
         chatId,
         `⚠️ <b>Rate Limit Exceeded</b>\nYou've sent too many messages in a short period. Please wait ${rateCheck.resetSeconds} seconds before sending another message.`
       );
@@ -187,23 +192,25 @@ export class UpdateDispatcher {
 
     if (resilienceService.degradedModeActive) {
       await taskService.saveNote(user.id, text, 'Saved Thought', null, msg.message_id);
-      await this.tg.sendMessage(
+      await this.sendBotMessage(
+        user.id,
         chatId,
         `📥 I've saved your thought to your inbox, but AI parsing is temporarily paused for maintenance.`
       );
       return;
     }
 
-    // 3. User is ACTIVE: Run LLM Tool Calling Pipeline
+    // 3. User is ACTIVE: Run LLM Tool Calling Pipeline with conversation history
     try {
       const openTasks = await taskService.getOpenTasks(user.id);
-      const interpretResult = await llmService.interpret(user, text, openTasks);
+      const interpretResult = await llmService.interpret(user, text, openTasks, messageHistory);
 
       if (interpretResult.toolCalls.length === 0) {
         if (interpretResult.rawText) {
-          await this.tg.sendMessage(chatId, interpretResult.rawText);
+          await this.sendBotMessage(user.id, chatId, interpretResult.rawText);
         } else {
-          await this.tg.sendMessage(
+          await this.sendBotMessage(
+            user.id,
             chatId,
             `I couldn't detect a task or reminder. Try something like <code>Submit DBMS assignment by Friday 6pm</code> or type /help.`
           );
@@ -219,7 +226,8 @@ export class UpdateDispatcher {
       console.error('[UpdateDispatcher] LLM Pipeline Error:', err);
       // Fallback: Save as note in Degraded Mode
       await taskService.saveNote(user.id, text, 'Saved Thought', null, msg.message_id);
-      await this.tg.sendMessage(
+      await this.sendBotMessage(
+        user.id,
         chatId,
         `📥 I've saved your thought to your notes, but couldn't parse the dates right now.`
       );
@@ -235,11 +243,12 @@ export class UpdateDispatcher {
           details: call.args.details,
           dueLocal: call.args.due_local,
           timeIsExplicit: call.args.time_is_explicit,
+          recurrence: call.args.recurrence,
           userTimezone: user.timezone,
           defaultReminderTime: user.default_reminder_time,
           sourceMessageId: messageId,
         });
-        await this.tg.sendMessage(chatId, res.text, res.keyboard);
+        await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
         break;
       }
 
@@ -249,41 +258,42 @@ export class UpdateDispatcher {
           title: call.args.text,
           dueLocal: call.args.remind_local,
           timeIsExplicit: call.args.time_is_explicit,
+          recurrence: call.args.recurrence,
           userTimezone: user.timezone,
           defaultReminderTime: user.default_reminder_time,
           sourceMessageId: messageId,
         });
-        await this.tg.sendMessage(chatId, res.text, res.keyboard);
+        await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
         break;
       }
 
       case 'save_note': {
         const res = await taskService.saveNote(user.id, call.args.content, call.args.title, call.args.url, messageId);
-        await this.tg.sendMessage(chatId, res.text, res.keyboard);
+        await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
         break;
       }
 
       case 'complete_task': {
         const res = await taskService.completeTask(user.id, call.args.task_id, call.args.text_hint);
-        await this.tg.sendMessage(chatId, res.text, res.keyboard);
+        await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
         break;
       }
 
       case 'drop_task': {
         const res = await taskService.dropTask(user.id, call.args.task_id, call.args.text_hint);
-        await this.tg.sendMessage(chatId, res.text, res.keyboard);
+        await this.sendBotMessage(user.id, chatId, res.text, res.keyboard);
         break;
       }
 
       case 'search': {
         const res = await searchService.search(user.id, call.args.query, call.args.scope);
-        await this.tg.sendMessage(chatId, res.formattedText);
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
         break;
       }
 
       case 'list_items': {
         const text = await morningDigest.buildUpcomingList(user);
-        await this.tg.sendMessage(chatId, text);
+        await this.sendBotMessage(user.id, chatId, text);
         break;
       }
 
@@ -301,7 +311,8 @@ export class UpdateDispatcher {
             [user.id, JSON.stringify({ pending_title: taskTitle })]
           );
 
-          await this.tg.sendMessage(
+          await this.sendBotMessage(
+            user.id,
             chatId,
             `❓ <b>When would you like to schedule:</b> <i>"${taskTitle}"</i>?\n\n` +
             `Tap an option below, reply with a time (e.g. <i>"tomorrow 3pm"</i>), or say <i>"skip"</i> to save it as an open task without a deadline.`,
@@ -314,13 +325,14 @@ export class UpdateDispatcher {
             ]
           );
         } else {
-          await this.tg.sendMessage(chatId, `❓ <b>Clarification Needed:</b> ${call.args.question}`);
+          await this.sendBotMessage(user.id, chatId, `❓ <b>Clarification Needed:</b> ${call.args.question}`);
         }
         break;
       }
 
       case 'out_of_scope': {
-        await this.tg.sendMessage(
+        await this.sendBotMessage(
+          user.id,
           chatId,
           `👋 I'm FewFeww, your personal task and follow-through assistant. I track deadlines, set reminders, and take notes. Forward me a deadline or type /help to see what I can do!`
         );
@@ -331,6 +343,38 @@ export class UpdateDispatcher {
         console.warn(`[UpdateDispatcher] Unhandled tool call: ${call.name}`);
         break;
     }
+  }
+
+  private async sendBotMessage(
+    userId: string,
+    chatId: number | string,
+    text: string,
+    keyboard?: any
+  ): Promise<any> {
+    const sent = await this.tg.sendMessage(chatId, text, keyboard);
+    await this.logMessage(userId, 'OUTBOUND', sent?.message_id, 'TEXT', text);
+    return sent;
+  }
+
+  private async getRecentMessageHistory(
+    userId: string,
+    limit = 8
+  ): Promise<Array<{ role: 'user' | 'assistant'; text: string }>> {
+    const res = await pool.query(
+      `
+      SELECT direction, text
+      FROM messages
+      WHERE user_id = $1 AND kind = 'TEXT' AND text IS NOT NULL AND text != ''
+      ORDER BY created_at DESC
+      LIMIT $2;
+      `,
+      [userId, limit]
+    );
+
+    return res.rows.reverse().map((r) => ({
+      role: r.direction === 'INBOUND' ? 'user' : 'assistant',
+      text: r.text,
+    }));
   }
 
   private async logMessage(
