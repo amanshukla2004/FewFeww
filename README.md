@@ -1,62 +1,142 @@
-# FewFeww Project Workspace & Roadmap Guide
+# FewFeww — Telegram-First Personal Follow-Through Assistant
 
-Welcome to the **FewFeww** workspace. This repository has been structured into clear phases so you always know **what to build now** and **what to leave for later**.
+FewFeww is an intelligent, privacy-first personal assistant built for Telegram and WhatsApp that turns spontaneous messages, voice recordings, and photos into actionable commitments. Unlike generic to-do apps that rely on passive task lists, FewFeww drives active execution using an automated 5-Stage Nudge Ladder, deterministic time-zone math, and zero-token full-text search.
 
 ---
 
-## 🗂️ Workspace Directory Map
+## ⚡ Quick Start
 
-```text
-FewFeww/
-│
-├── 📂 01-CURRENT-MVP/              👉 [WORK ON THIS NOW] Active sprint & execution spec
-│   ├── README.md                   # MVP overview & executive decisions
-│   ├── 01-executive-comparison...  # Conflict audit & architectural decisions
-│   ├── 02-final-mvp-specification  # Master PRD, database schema, Nudge Ladder & tools
-│   ├── 03-implementation-playbook  # 6-week build plan & day-by-day steps
-│   ├── 04-testing-evals-and-runbook# Test harness & golden eval suite
-│   └── 05-search-hosting-and-llm...# Postgres FTS, VPS topology, and AI strategy
-│
-├── 📂 02-WORK-LATER-ROADMAP/       ⏳ [WORK ON LATER] Post-Beta & long-term vision
-│   ├── final-product/              # Phase 2+ features, scaling, multi-platform apps
-│   └── strategy-and-specs/         # High-level vision, business model & governance
-│
-├── 📂 03-ARCHIVE/                  📦 [HISTORICAL] Superseded drafts & early notes
-│   ├── legacy-mvp-draft-1/         # Deprecated Fastify/BullMQ/Redis draft
-│   ├── tech-stack-analysis/        # Initial stack comparisons & notes
-│   ├── claude_mvp_specificaltion.md# Legacy raw prompt specification
-│   ├── file.md                     # Scratchpad notes
-│   └── file.original.md            # Original scratchpad backup
-│
-└── 📂 assets/                      📁 [ASSETS] Media and peripheral files
-    ├── intowebsite-video/          # Product demo / intro video
-    └── voice-agent-requirements.txt# Voice agent requirements reference
+### 1. Prerequisites
+- **Node.js**: `v22` or `v24` LTS
+- **PostgreSQL**: `v17` (with `pg_trgm` extension installed)
+- **Telegram Bot Token**: Created via [@BotFather](https://t.me/BotFather)
+- **Groq API Key**: For low-latency LLM semantic tool-calling and Whisper transcription
+
+### 2. Installation & Setup
+
+```bash
+# 1. Clone repository
+git clone https://github.com/your-org/fewfeww.git
+cd fewfeww
+
+# 2. Install dependencies
+npm install
+
+# 3. Configure environment variables
+cp .env.example .env
+# Edit .env with your DATABASE_URL, TELEGRAM_BOT_TOKEN, and GROQ_API_KEY
+
+# 4. Run database migrations
+npm run migrate
+
+# 5. Start development server
+npm run dev
+```
+
+### 3. Local Development (Telegram Poller)
+For local testing without exposing public webhooks:
+```bash
+npm run poll
 ```
 
 ---
 
-## 🚀 Where Do I Start?
+## 🛠️ Commands Reference
 
-Follow this simple 3-step sequence:
-
-1. **Read the Core Architecture Decisions:**
-   👉 [01-CURRENT-MVP/01-executive-comparison-and-decisions.md](01-CURRENT-MVP/01-executive-comparison-and-decisions.md)
-   *(Understand why we chose Telegram-first, Postgres `SKIP LOCKED` for queueing, and BIGINT keys).*
-
-2. **Understand the Product Specification & Database Schema:**
-   👉 [01-CURRENT-MVP/02-final-mvp-specification.md](01-CURRENT-MVP/02-final-mvp-specification.md)
-   *(The definitive PRD: tables, user flow, Telegram bot commands, and the 5-stage Nudge Ladder).*
-
-3. **Start Building Phase 0 / Phase 1:**
-   👉 [01-CURRENT-MVP/03-implementation-playbook-and-timeline.md](01-CURRENT-MVP/03-implementation-playbook-and-timeline.md)
-   *(Your practical step-by-step implementation guide: bot creation, database migration, and capture pipeline).*
+| Command | Description |
+|---|---|
+| `npm run dev` | Starts the Fastify server with hot-reloading via `tsx watch` |
+| `npm run poll` | Runs the long-polling Telegram bot runner for local development |
+| `npm run build` | Compiles TypeScript source to production JavaScript in `dist/` |
+| `npm start` | Launches the production application from compiled `dist/` |
+| `npm test` | Executes unit and integration test suites via Vitest |
+| `npm run migrate` | Runs pending PostgreSQL schema migrations in `migrations/` |
 
 ---
 
-## 📌 Summary of Core Rules for V1
+## 🏛️ Architecture & System Invariants
 
-* **Channel:** Telegram Bot only (Private chats). WhatsApp deferred to post-beta.
-* **Database:** PostgreSQL 17 with `BIGINT` primary keys (fits Telegram 64-byte button limits).
-* **Scheduler:** Native Postgres `FOR UPDATE SKIP LOCKED` (no Redis/BullMQ complexity).
-* **AI Engine:** The LLM interprets intents; code deterministically executes dates and writes DB rows.
-* **Core Differentiator:** 5-Stage Nudge Ladder (automated follow-through).
+FewFeww is engineered around five fundamental system constraints:
+
+1. **Persistent Row-Level Scheduler (`SKIP LOCKED`):**  
+   Scheduled reminders and follow-up nudges are managed natively within PostgreSQL using `SELECT ... FOR UPDATE SKIP LOCKED`. This eliminates Redis/BullMQ infrastructure while ensuring zero duplicate dispatch and strict ACID safety.  
+   👉 [ADR-001: Native PostgreSQL Poller with SKIP LOCKED for Task Scheduling](docs/decisions/ADR-001-postgres-skip-locked-scheduler.md)
+
+2. **Deterministic Date Math:**  
+   The LLM is strictly confined to intent classification and parameter extraction; it never computes relative calendar dates. Exact UTC instants and user-local timezones are resolved deterministically in code via `chrono-node` and `luxon`.  
+   👉 [ADR-002: Deterministic Date Engine vs LLM Computation](docs/decisions/ADR-002-deterministic-date-engine.md)
+
+3. **Telegram 64-Byte Callback Budget:**  
+   Telegram enforces a hard 64-byte payload limit on inline keyboard callbacks. All database entities use `BIGINT GENERATED ALWAYS AS IDENTITY` combined with compact action prefixes (`r:done:<id>`, `u:task:<id>`).  
+   👉 [ADR-003: Telegram 64-Byte Callback Data Payload Budget](docs/decisions/ADR-003-telegram-64-byte-callback-data-budget.md)
+
+4. **Multimodal Task Ingestion (Voice & Vision):**  
+   Whiteboard photos, handwritten notes, and meeting audio recordings are ingested via Groq Whisper and multimodal vision models, automatically populating structured to-dos.  
+   👉 [ADR-004: Multimodal Vision & Audio Transcription Pipeline](docs/decisions/ADR-004-multimodal-vision-and-transcription-pipeline.md)
+
+5. **DPDP Act & GDPR Privacy by Design:**  
+   Statutory compliance with India's Digital Personal Data Protection Act 2023: self-service `/export` generates streaming JSON & CSV archives, while `/deleteme` cascades a permanent hard-deletion of all user data.  
+   👉 [ADR-005: Privacy, Consent & DPDP Act 2023 Compliance Architecture](docs/decisions/ADR-005-privacy-and-dpdp-compliance-architecture.md)
+
+---
+
+## 🗂️ Project Directory Map
+
+```text
+FewFeww/
+├── 📂 docs/
+│   ├── 📂 decisions/              # Architecture Decision Records (ADRs)
+│   └── 📂 ideas/                  # Product concept and specification notes
+├── 📂 migrations/                 # PostgreSQL incremental SQL migration scripts
+├── 📂 src/
+│   ├── 📂 db/                     # Connection pool, repositories, and migration runner
+│   │   ├── pool.ts                # pg.Pool configuration
+│   │   ├── user.repo.ts           # User profiles, onboarding state & preferences
+│   │   └── inbox.repo.ts          # Idempotency log for webhook updates
+│   ├── 📂 routes/                 # Fastify HTTP route handlers
+│   │   ├── webhook.ts             # Telegram webhook ingress with idempotency
+│   │   ├── whatsapp.ts            # Meta WhatsApp Cloud API gateway
+│   │   ├── dashboard.ts           # Interactive analytics dashboard
+│   │   └── landing.ts             # Accessible landing page & pricing grid
+│   ├── 📂 services/               # Core business domain services
+│   │   ├── task.service.ts        # Task lifecycle, fuzzy matching & reminders
+│   │   ├── reminder.worker.ts     # Persistent poller with SKIP LOCKED
+│   │   ├── nudge.policy.ts        # 5-Stage Nudge Ladder & quiet hours logic
+│   │   ├── date.resolver.ts       # 10-rule deterministic date engine
+│   │   ├── dispatcher.ts          # LLM tool-calling execution coordinator
+│   │   ├── mom.service.ts         # Meeting Minutes mode & voice note processing
+│   │   ├── vision.service.ts      # Image analysis & visual to-do extraction
+│   │   ├── habit.service.ts       # Habit streaks & numeric metric tracking
+│   │   ├── circle.service.ts      # Social circles & accountability reminders
+│   │   └── privacy.service.ts     # /export (JSON/CSV) & /deleteme cascade
+│   ├── index.ts                   # Application bootstrap & worker orchestration
+│   └── server.ts                  # Fastify HTTP server instantiation
+├── 📂 01-CURRENT-MVP/             # Master MVP functional specifications & playbook
+├── 📂 02-WORK-LATER-ROADMAP/      # Post-beta roadmap and enterprise features
+└── 📂 03-ARCHIVE/                 # Historical drafts and legacy notes
+```
+
+---
+
+## 🧪 Testing & Quality Gates
+
+Run the test suite with:
+```bash
+npm test
+```
+To run focused unit tests (such as deterministic date resolution):
+```bash
+npx vitest run src/services/date.resolver.test.ts
+```
+
+---
+
+## 🤝 Contributing
+
+1. Create a focused branch for your change (`git checkout -b feature/my-feature`).
+2. Keep pull requests focused: separate structural refactoring from behavioral changes.
+3. Verify the build and tests pass cleanly before submitting:
+   ```bash
+   npm run build && npm test
+   ```
+4. If introducing or altering an architectural pattern, submit an accompanying Architecture Decision Record under `docs/decisions/`.
