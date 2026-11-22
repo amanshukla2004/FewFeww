@@ -20,6 +20,7 @@ import { emailService } from './email.service.js';
 import { driveService } from './drive.service.js';
 import { visionService } from './vision.service.js';
 import { momService } from './mom.service.js';
+import { textProcessor } from './text_processor.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -731,6 +732,24 @@ export class UpdateDispatcher {
           call.args.folder_path || '/FewFeww',
           call.args.provider || 'ALL'
         );
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'rewrite_text': {
+        const res = await textProcessor.rewriteText({
+          text: call.args.text,
+          tone: call.args.tone,
+        });
+        await this.sendBotMessage(user.id, chatId, res.formattedText);
+        break;
+      }
+
+      case 'translate_text': {
+        const res = await textProcessor.translateText({
+          text: call.args.text,
+          targetLanguage: call.args.target_language,
+        });
         await this.sendBotMessage(user.id, chatId, res.formattedText);
         break;
       }

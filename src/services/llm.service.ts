@@ -549,6 +549,41 @@ export class LlmService {
       {
         type: 'function',
         function: {
+          name: 'rewrite_text',
+          description:
+            'Rewrite, polish, or rephrase text in a specific tone (e.g. "rewrite this: hey what is up", "make this more formal: thanks for help", "make this casual").',
+          parameters: {
+            type: 'object',
+            properties: {
+              text: { type: 'string', description: 'The text snippet to rewrite' },
+              tone: {
+                type: 'string',
+                enum: ['FORMAL', 'CASUAL', 'CONCISE', 'PERSUASIVE'],
+                description: 'The desired tone',
+              },
+            },
+            required: ['text', 'tone'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'translate_text',
+          description: 'Translate text into another language (e.g. "translate to Spanish: Hello how are you", "say this in French: I need help").',
+          parameters: {
+            type: 'object',
+            properties: {
+              text: { type: 'string', description: 'The text to translate' },
+              target_language: { type: 'string', description: 'Target language name (e.g. Spanish, French, German, Hindi)' },
+            },
+            required: ['text', 'target_language'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'out_of_scope',
           description: 'Call when message is conversational chit-chat, a joke, or completely unrelated to personal tasks/notes.',
           parameters: {
