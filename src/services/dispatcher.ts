@@ -24,6 +24,8 @@ import { textProcessor } from './text_processor.js';
 import { dailySummaryService } from './daily.summary.service.js';
 import { memoryService } from './memory.service.js';
 import { webSearchService } from './web_search.service.js';
+import { jobService } from './job.service.js';
+import { config } from '../config.js';
 import { DateTime } from 'luxon';
 import { pool } from '../db/pool.js';
 
@@ -72,6 +74,16 @@ export class UpdateDispatcher {
       await this.tg.answerCallbackQuery(cq.id);
     } catch (err) {
       // Ignored if expired
+    }
+
+    if (config.allowedTelegramUserIds && config.allowedTelegramUserIds.length > 0) {
+      if (!config.allowedTelegramUserIds.includes(String(from.id))) {
+        await this.tg.sendMessage(
+          chatId,
+          `🔒 <b>Access Restricted</b>\nFewFeww is currently in private testing. Contact the admin for access.`
+        );
+        return;
+      }
     }
 
     const { user } = await userRepo.findOrCreate(from.id, chatId, from.first_name, from.language_code);
@@ -163,6 +175,16 @@ export class UpdateDispatcher {
     const chatId = msg.chat?.id || from.id;
     let text = (msg.text || '').trim();
 
+    if (config.allowedTelegramUserIds && config.allowedTelegramUserIds.length > 0) {
+      if (!config.allowedTelegramUserIds.includes(String(from.id))) {
+        await this.tg.sendMessage(
+          chatId,
+          `🔒 <b>Access Restricted</b>\nFewFeww is currently in private testing. Contact the admin for access.`
+        );
+        return;
+      }
+    }
+
     const { user } = await userRepo.findOrCreate(from.id, chatId, from.first_name, from.language_code);
 
     // Handle Document / File Forwarding to Cloud Drive
@@ -198,6 +220,37 @@ export class UpdateDispatcher {
           }
         }
         const analysis = await visionService.analyzeImage(user.id, buf, 'image/jpeg', caption);
+
+        // Check if the image analysis or caption is a job post screenshot
+        const combinedText = ((caption ? `${caption}\n` : '') + analysis.formattedText).trim();
+        const isJobScreenshot =
+          /hiring|job opening|vacancy|internship|apply|resume|curriculum vitae|career|open role|stipend|salary/i.test(
+            combinedText
+          );
+
+        if (isJobScreenshot && combinedText.length > 20) {
+          const { job } = await jobService.saveJobImmediate({
+            userId: user.id,
+            rawText: combinedText,
+            chatId,
+            messageId: msg.message_id,
+            imageFileId: bestPhoto.file_id,
+            timezone: user.timezone,
+            defaultReminderTime: user.default_reminder_time,
+          });
+
+          const temp = await this.tg.sendMessage(
+            chatId,
+            `⏳ <b>Screenshot saved as Job #${job.id}, processing...</b>\n\nExtracting details from OCR text in background.`
+          );
+
+          jobService.processExtractionAsync(job.id, user.id, chatId, temp?.result?.message_id, {
+            timezone: user.timezone,
+            defaultReminderTime: user.default_reminder_time,
+          });
+          return;
+        }
+
         await this.sendBotMessage(user.id, chatId, analysis.formattedText);
 
         // Auto-create tasks for extracted items
@@ -386,6 +439,88 @@ export class UpdateDispatcher {
         user.id,
         chatId,
         `📥 I've saved your thought to your inbox, but AI parsing is temporarily paused for maintenance.`
+      );
+      return;
+    }
+
+    // 2.6 Quick Save Job Ingestion Gate (Pasted / Forwarded Job Postings or Lone Links)
+    const isLoneLink =
+      /^https?:\/\/[^\s]+$/i.test(text) &&
+      /(forms\.gle|typeform\.com|google\.com\/forms|airtable\.com|fillout\.com|tally\.so)/i.test(text);
+    const hasEmail = /[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/.test(text);
+    const hasJobKeywords =
+      /hiring|job opening|vacancy|internship|apply|resume|role:|salary|ctc|stipend|fullstack|frontend|backend|swe /i.test(
+        text
+      );
+    const isExplicitJob =
+      (hasEmail && (hasJobKeywords || /subject/i.test(text))) ||
+      (hasJobKeywords && /apply before|deadline|send (your )?(resume|cv|portfolio)|fill (this )?form/i.test(text)) ||
+      isLoneLink;
+
+    if (isExplicitJob) {
+      const { job, isDuplicate } = await jobService.saveJobImmediate({
+        userId: user.id,
+        rawText: text,
+        chatId,
+        messageId: msg.message_id,
+        initialType: isLoneLink ? 'form' : undefined,
+        timezone: user.timezone,
+        defaultReminderTime: user.default_reminder_time,
+      });
+
+      if (isDuplicate) {
+        const card = jobService.formatJobCard(job);
+        const keyboard = card.buttons?.map((row) =>
+          row.map((btn) => ({ text: btn.text, callback_data: btn.callbackData }))
+        );
+        await this.sendBotMessage(
+          user.id,
+          chatId,
+          `ℹ️ <b>Already saved as Job #${job.id}:</b>\n\n${card.text}`,
+          keyboard
+        );
+        return;
+      }
+
+      const temp = await this.tg.sendMessage(
+        chatId,
+        `⏳ <b>Job #${job.id} saved, processing...</b>\n\nExtracting application details in background.`
+      );
+
+      jobService.processExtractionAsync(job.id, user.id, chatId, temp?.result?.message_id, {
+        timezone: user.timezone,
+        defaultReminderTime: user.default_reminder_time,
+      });
+      return;
+    }
+
+    // Ambiguous Job Detection: ask quick confirmation question
+    const isAmbiguousJob =
+      hasJobKeywords &&
+      text.length > 50 &&
+      !/remind me|todo|task|buy |call mom|read /i.test(text) &&
+      !text.startsWith('/');
+
+    if (isAmbiguousJob) {
+      const { job } = await jobService.saveJobImmediate({
+        userId: user.id,
+        rawText: text,
+        chatId,
+        messageId: msg.message_id,
+        timezone: user.timezone,
+        defaultReminderTime: user.default_reminder_time,
+      });
+
+      const preview = text.length > 120 ? text.slice(0, 120) + '...' : text;
+      await this.tg.sendMessage(
+        chatId,
+        `❓ <b>Save this as a job application?</b>\n\n<i>"${preview}"</i>`,
+        [
+          [
+            { text: '💼 Save Job', callback_data: `job:confirm:${job.id}` },
+            { text: '❌ Not a job', callback_data: `job:cancel:${job.id}` },
+          ],
+        ]
       );
       return;
     }
@@ -877,6 +1012,35 @@ export class UpdateDispatcher {
           );
           await this.sendBotMessage(user.id, chatId, `❓ <b>Clarification Needed:</b> ${call.args.question}`);
         }
+        break;
+      }
+
+      case 'save_job': {
+        const raw = call.args.raw_text || '';
+        const { job, isDuplicate } = await jobService.saveJobImmediate({
+          userId: user.id,
+          rawText: raw,
+          chatId,
+          messageId: messageId ? Number(messageId) : undefined,
+          timezone: user.timezone,
+          defaultReminderTime: user.default_reminder_time,
+        });
+
+        if (isDuplicate) {
+          const card = jobService.formatJobCard(job);
+          await this.sendBotMessage(user.id, chatId, `ℹ️ <b>Already saved as Job #${job.id}:</b>\n\n${card.text}`);
+          break;
+        }
+
+        const temp = await this.tg.sendMessage(
+          chatId,
+          `⏳ <b>Job #${job.id} saved, processing...</b>\n\nExtracting application details in background.`
+        );
+
+        jobService.processExtractionAsync(job.id, user.id, chatId, temp?.result?.message_id, {
+          timezone: user.timezone,
+          defaultReminderTime: user.default_reminder_time,
+        });
         break;
       }
 

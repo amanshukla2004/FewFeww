@@ -49,4 +49,5 @@ execution-steps/
 # Local Demo Sandbox
 VOICE_CALLING-demo/
 DASHBOARD-demo/
+.agent/
 

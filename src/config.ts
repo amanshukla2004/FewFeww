@@ -26,6 +26,7 @@ export interface AppConfig {
     quietEnd: string;
   };
   adminChatId?: number;
+  allowedTelegramUserIds: string[];
 }
 
 export const config: AppConfig = {
@@ -52,4 +53,8 @@ export const config: AppConfig = {
     quietEnd: process.env.QUIET_END || '07:00',
   },
   adminChatId: process.env.ADMIN_CHAT_ID ? parseInt(process.env.ADMIN_CHAT_ID, 10) : undefined,
+  allowedTelegramUserIds: (process.env.ALLOWED_TELEGRAM_USER_IDS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
 };

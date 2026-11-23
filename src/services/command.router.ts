@@ -9,6 +9,7 @@ import { calendarService } from './calendar.service.js';
 import { momService } from './mom.service.js';
 import { dailySummaryService } from './daily.summary.service.js';
 import { memoryService } from './memory.service.js';
+import { jobService } from './job.service.js';
 
 export interface CommandResponse {
   text: string;
@@ -32,6 +33,22 @@ export class CommandRouter {
         };
       }
       return { text: joinRes.formattedText };
+    }
+
+    // Handle /job_<id> shortcuts
+    if (cmd.startsWith('/job_')) {
+      const jobId = parseInt(cmd.replace('/job_', ''), 10);
+      if (!isNaN(jobId)) {
+        const job = await jobService.getJob(jobId, user.id);
+        if (!job) {
+          return { text: `🔍 <b>Job #${jobId} not found.</b>` };
+        }
+        const card = jobService.formatJobCard(job);
+        const keyboard = card.buttons?.map((row) =>
+          row.map((btn) => ({ text: btn.text, callback_data: btn.callbackData }))
+        );
+        return { text: card.text, keyboard };
+      }
     }
 
     switch (cmd) {
@@ -188,6 +205,140 @@ export class CommandRouter {
             ],
           ],
         };
+
+      case '/job': {
+        const rawContent = commandText.replace(/^\/job\s*/i, '').trim();
+        // If arg is a numeric ID, show that job
+        if (/^\d+$/.test(rawContent)) {
+          const jobId = parseInt(rawContent, 10);
+          const job = await jobService.getJob(jobId, user.id);
+          if (!job) {
+            return { text: `🔍 <b>Job #${jobId} not found.</b>` };
+          }
+          const card = jobService.formatJobCard(job);
+          const keyboard = card.buttons?.map((row) =>
+            row.map((btn) => ({ text: btn.text, callback_data: btn.callbackData }))
+          );
+          return { text: card.text, keyboard };
+        }
+
+        // If user supplied text after /job, save it immediately!
+        if (rawContent.length > 0) {
+          const { job, isDuplicate } = await jobService.saveJobImmediate({
+            userId: user.id,
+            rawText: rawContent,
+            chatId: user.telegram_chat_id,
+            timezone: user.timezone,
+            defaultReminderTime: user.default_reminder_time,
+          });
+
+          if (isDuplicate) {
+            const card = jobService.formatJobCard(job);
+            const keyboard = card.buttons?.map((row) =>
+              row.map((btn) => ({ text: btn.text, callback_data: btn.callbackData }))
+            );
+            return {
+              text: `ℹ️ <b>Already saved as Job #${job.id}:</b>\n\n${card.text}`,
+              keyboard,
+            };
+          }
+
+          // Trigger asynchronous background extraction
+          jobService.processExtractionAsync(job.id, user.id, user.telegram_chat_id, undefined, {
+            timezone: user.timezone,
+            defaultReminderTime: user.default_reminder_time,
+          });
+
+          return {
+            text: `⏳ <b>Job #${job.id} saved, processing...</b>\n\nExtracting role, company, email, subject, instructions, and deadline in background.`,
+          };
+        }
+
+        // Otherwise show /job cheatsheet
+        return {
+          text:
+            `💼 <b>Quick Save Job</b>\n\n` +
+            `Save job posts, form links, or emails in seconds:\n\n` +
+            `• Paste or forward a job post directly\n` +
+            `• <code>/job [pasted job post]</code>\n` +
+            `• <code>/jobs</code> — View latest 5 jobs\n` +
+            `• <code>/jobs todo</code> — View pending applications\n` +
+            `• <code>/job [id]</code> — View details & original text\n` +
+            `• <code>/applied [id]</code> — Mark as applied\n` +
+            `• <code>/edit [id] [field] [value]</code> — Edit a field\n` +
+            `• <code>/deletejob [id]</code> — Delete entry`,
+        };
+      }
+
+      case '/jobs': {
+        const isTodo = arg.toLowerCase() === 'todo' || arg.toLowerCase() === 'pending';
+        const jobs = await jobService.listJobs(user.id, {
+          status: isTodo ? 'to-apply' : undefined,
+          limit: isTodo ? undefined : 5,
+        });
+        const title = isTodo ? 'Pending Job Applications (To-Apply)' : 'Latest Saved Jobs';
+        const res = jobService.formatJobsList(jobs, title);
+        const keyboard = res.buttons?.map((row) =>
+          row.map((btn) => ({ text: btn.text, callback_data: btn.callbackData }))
+        );
+        return { text: res.text, keyboard };
+      }
+
+      case '/applied': {
+        const jobId = parseInt(arg, 10);
+        if (isNaN(jobId)) {
+          return { text: `⚠️ Please specify a job ID: <code>/applied [id]</code>` };
+        }
+        const updated = await jobService.markApplied(jobId, user.id);
+        if (!updated) {
+          return { text: `🔍 <b>Job #${jobId} not found.</b>` };
+        }
+        return {
+          text: `🎉 <b>Marked Job #${jobId} as APPLIED!</b>\nRole: <b>${updated.job_title || 'Job'}</b> at <b>${updated.company || 'Company'}</b>`,
+        };
+      }
+
+      case '/edit': {
+        const editParts = commandText.trim().split(/\s+/);
+        const jobId = parseInt(editParts[1] || '', 10);
+        const field = editParts[2] || '';
+        const value = editParts.slice(3).join(' ');
+
+        if (isNaN(jobId) || !field || !value) {
+          return {
+            text: `⚠️ Usage: <code>/edit [id] [field] [value]</code>\nExample: <code>/edit 12 subject Application - Frontend Dev</code>\n\nAllowed fields: <i>subject, email, instructions, role, company, deadline, link, status</i>`,
+          };
+        }
+
+        try {
+          const updated = await jobService.editField(jobId, user.id, field, value);
+          if (!updated) {
+            return { text: `🔍 <b>Job #${jobId} not found.</b>` };
+          }
+          const card = jobService.formatJobCard(updated);
+          const keyboard = card.buttons?.map((row) =>
+            row.map((btn) => ({ text: btn.text, callback_data: btn.callbackData }))
+          );
+          return {
+            text: `✏️ <b>Job #${jobId} updated:</b>\n\n${card.text}`,
+            keyboard,
+          };
+        } catch (err: any) {
+          return { text: `⚠️ ${err.message}` };
+        }
+      }
+
+      case '/deletejob': {
+        const jobId = parseInt(arg, 10);
+        if (isNaN(jobId)) {
+          return { text: `⚠️ Please specify a job ID: <code>/deletejob [id]</code>` };
+        }
+        const deleted = await jobService.deleteJob(jobId, user.id);
+        if (!deleted) {
+          return { text: `🔍 <b>Job #${jobId} not found.</b>` };
+        }
+        return { text: `🗑️ <b>Job #${jobId} permanently deleted.</b>` };
+      }
 
       case '/feedback':
         return {

@@ -6,6 +6,7 @@ import { privacyService } from './privacy.service.js';
 import { taskService } from './task.service.js';
 import { habitService } from './habit.service.js';
 import { emailService } from './email.service.js';
+import { jobService } from './job.service.js';
 import { DateTime } from 'luxon';
 
 export class CallbackRouter {
@@ -61,6 +62,12 @@ export class CallbackRouter {
           await this.tg.sendMessage(chatId, res.text);
         }
       }
+      return;
+    }
+
+    // 2.7 Job Action Callbacks (job:<action>:<jobId>)
+    if (data.startsWith('job:')) {
+      await this.handleJobAction(user, chatId, messageId, data);
       return;
     }
 
@@ -507,6 +514,107 @@ export class CallbackRouter {
       await this.tg.editMessageText(chatId, messageId, msg);
     } else {
       await this.tg.sendMessage(chatId, msg);
+    }
+  }
+
+  private async handleJobAction(
+    user: User,
+    chatId: number | string,
+    messageId: number | undefined,
+    data: string
+  ): Promise<void> {
+    const parts = data.split(':');
+    const action = parts[1];
+    const jobId = parseInt(parts[2] || '', 10);
+
+    if (isNaN(jobId)) return;
+
+    if (action === 'orig') {
+      const job = await jobService.getJob(jobId, user.id);
+      if (!job) return;
+      const safeText = job.raw_text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const reply = `📄 <b>Original Raw Text for Job #${job.id}:</b>\n\n<blockquote>${safeText}</blockquote>`;
+      const keyboard = [[{ text: '🔙 Back to Job Card', callback_data: `job:card:${job.id}` }]];
+      if (messageId) {
+        await this.tg.editMessageText(chatId, messageId, reply, keyboard);
+      } else {
+        await this.tg.sendMessage(chatId, reply, keyboard);
+      }
+      return;
+    }
+
+    if (action === 'card') {
+      const job = await jobService.getJob(jobId, user.id);
+      if (!job) return;
+      const card = jobService.formatJobCard(job);
+      const keyboard = card.buttons?.map((row) =>
+        row.map((btn) => ({ text: btn.text, callback_data: btn.callbackData }))
+      );
+      if (messageId) {
+        await this.tg.editMessageText(chatId, messageId, card.text, keyboard);
+      } else {
+        await this.tg.sendMessage(chatId, card.text, keyboard);
+      }
+      return;
+    }
+
+    if (action === 'app') {
+      const job = await jobService.getJob(jobId, user.id);
+      if (!job) return;
+      const newStatus = job.status === 'applied' ? 'to-apply' : 'applied';
+      const updated =
+        newStatus === 'applied'
+          ? await jobService.markApplied(jobId, user.id)
+          : await jobService.editField(jobId, user.id, 'status', 'to-apply');
+      if (!updated) return;
+      const card = jobService.formatJobCard(updated);
+      const keyboard = card.buttons?.map((row) =>
+        row.map((btn) => ({ text: btn.text, callback_data: btn.callbackData }))
+      );
+      if (messageId) {
+        await this.tg.editMessageText(chatId, messageId, card.text, keyboard);
+      } else {
+        await this.tg.sendMessage(chatId, card.text, keyboard);
+      }
+      return;
+    }
+
+    if (action === 'rerun') {
+      await jobService.reRunExtraction(jobId, user.id, chatId, messageId);
+      return;
+    }
+
+    if (action === 'del') {
+      const deleted = await jobService.deleteJob(jobId, user.id);
+      const reply = deleted ? `🗑️ <b>Job #${jobId} permanently deleted.</b>` : `🔍 Job #${jobId} not found.`;
+      if (messageId) {
+        await this.tg.editMessageText(chatId, messageId, reply);
+      } else {
+        await this.tg.sendMessage(chatId, reply);
+      }
+      return;
+    }
+
+    if (action === 'confirm') {
+      if (messageId) {
+        await this.tg.editMessageText(chatId, messageId, `⏳ <b>Confirmed! Processing Job #${jobId}...</b>`);
+      }
+      jobService.processExtractionAsync(jobId, user.id, chatId, messageId, {
+        timezone: user.timezone,
+        defaultReminderTime: user.default_reminder_time,
+      });
+      return;
+    }
+
+    if (action === 'cancel') {
+      await jobService.deleteJob(jobId, user.id);
+      if (messageId) {
+        await this.tg.editMessageText(chatId, messageId, `👌 Cancelled. Not saved as a job.`);
+      }
+      return;
     }
   }
 }

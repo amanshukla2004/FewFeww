@@ -11,6 +11,7 @@ describe('Postgres Poller Scheduler (FOR UPDATE SKIP LOCKED)', () => {
   let dbUserId: string;
 
   beforeEach(async () => {
+    await pool.query('DELETE FROM reminders');
     await pool.query('DELETE FROM users WHERE telegram_user_id = $1', [String(testUserId)]);
     const { user } = await userRepo.findOrCreate(testUserId, testUserId, 'WorkerUser', 'en');
     await userRepo.setOnboardingState(user.id, 'ACTIVE');

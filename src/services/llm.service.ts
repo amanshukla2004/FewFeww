@@ -710,6 +710,24 @@ export class LlmService {
       {
         type: 'function',
         function: {
+          name: 'save_job',
+          description:
+            'Save a job vacancy, hiring announcement, internship post, or application request (e.g. "save this job opening", "hiring frontend dev email to ...", or a forwarded job post).',
+          parameters: {
+            type: 'object',
+            properties: {
+              raw_text: {
+                type: 'string',
+                description: 'The complete job posting or application text',
+              },
+            },
+            required: ['raw_text'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
           name: 'out_of_scope',
           description: 'Call when message is conversational chit-chat, a joke, or completely unrelated to personal tasks/notes.',
           parameters: {
