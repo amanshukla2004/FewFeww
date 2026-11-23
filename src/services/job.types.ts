@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SavedJob, JobType, JobStatus } from '../db/job.repo.js';
+import type { SavedJob, JobType, JobStatus } from '../db/job.repo.js';
 
 export const JobExtractionZodSchema = z.object({
   type: z.enum(['email', 'form', 'other']).default('other'),
@@ -32,4 +32,4 @@ export interface JobMessagingAdapter {
   editMessage(chatId: number | string, messageId: number | string, payload: JobMessagePayload): Promise<boolean>;
 }
 
-export { SavedJob, JobType, JobStatus };
+export type { SavedJob, JobType, JobStatus };

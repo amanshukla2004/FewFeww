@@ -228,10 +228,10 @@ export async function dashboardRoutes(app: FastifyInstance) {
 <body>
   <div class="container">
     <header>
-      <div class="brand">
+      <h1 class="brand">
         <span>⚡ FewFeww</span>
         <span class="brand-badge">PRO DASHBOARD</span>
-      </div>
+      </h1>
       <div>
         <span style="color: var(--muted); font-size: 14px;">User Account: <b>#${userId}</b></span>
       </div>
@@ -240,20 +240,20 @@ export async function dashboardRoutes(app: FastifyInstance) {
     <div class="grid-dashboard">
       <!-- Habit Graph 1: Weight History -->
       <div class="card col-8">
-        <div class="card-title">
+        <h2 class="card-title">
           <span>⚖️ Weight Tracking Over Time</span>
           <span class="badge" id="weight-delta">Active Metric</span>
-        </div>
+        </h2>
         <div class="chart-container">
-          <canvas id="weightChart"></canvas>
+          <canvas id="weightChart" role="img" aria-label="Weight Tracking Over Time Chart"></canvas>
         </div>
       </div>
 
       <!-- Quick Metrics -->
       <div class="card col-4">
-        <div class="card-title">
+        <h2 class="card-title">
           <span>🔥 Habit Streaks & Stats</span>
-        </div>
+        </h2>
         <div id="habits-summary" style="display: flex; flex-direction: column; gap: 12px;">
           <div style="padding: 12px; background: rgba(59, 130, 246, 0.08); border-radius: 8px;">
             <div style="font-size: 12px; color: var(--muted);">LeetCode Solved This Week</div>
@@ -268,19 +268,19 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
       <!-- Habit Graph 2: LeetCode Daily Bar Graph -->
       <div class="card col-6">
-        <div class="card-title">
+        <h2 class="card-title">
           <span>💻 LeetCode Problem Solved Activity</span>
-        </div>
+        </h2>
         <div class="chart-container">
-          <canvas id="leetcodeChart"></canvas>
+          <canvas id="leetcodeChart" role="img" aria-label="LeetCode Problem Solved Activity Chart"></canvas>
         </div>
       </div>
 
       <!-- Live Categorized To-Do Board -->
       <div class="card col-6">
-        <div class="card-title">
+        <h2 class="card-title">
           <span>📋 Active To-Do Lists & Categories</span>
-        </div>
+        </h2>
         <div id="tasks-container" style="max-height: 240px; overflow-y: auto;" aria-live="polite">
           <p style="color: var(--muted); font-size: 14px;">Loading tasks...</p>
         </div>
@@ -288,9 +288,9 @@ export async function dashboardRoutes(app: FastifyInstance) {
 
       <!-- Circles & Social Follow-Through -->
       <div class="card col-12">
-        <div class="card-title">
+        <h2 class="card-title">
           <span>👥 Circles & Group Reminders</span>
-        </div>
+        </h2>
         <div id="circles-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;" aria-live="polite">
           <p style="color: var(--muted); font-size: 14px;">Loading circles...</p>
         </div>

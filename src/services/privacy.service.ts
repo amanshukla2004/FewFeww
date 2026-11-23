@@ -38,6 +38,15 @@ export interface ExportData {
     acked_at: Date | null;
     ack_action: string | null;
   }>;
+  saved_jobs?: Array<{
+    id: number;
+    type: string;
+    job_title: string | null;
+    company: string | null;
+    apply_email: string | null;
+    status: string;
+    created_at: Date;
+  }>;
   messages_count: number;
 }
 
@@ -68,6 +77,11 @@ export class PrivacyService {
 
     const msgCountRes = await pool.query(
       `SELECT count(*)::int AS count FROM messages WHERE user_id = $1`,
+      [userId]
+    );
+
+    const jobsRes = await pool.query(
+      `SELECT id, type, job_title, company, apply_email, status, created_at FROM saved_jobs WHERE user_id = $1 ORDER BY created_at ASC`,
       [userId]
     );
 
@@ -106,6 +120,15 @@ export class PrivacyService {
         sent_at: r.sent_at,
         acked_at: r.acked_at,
         ack_action: r.ack_action,
+      })),
+      saved_jobs: jobsRes.rows.map((j) => ({
+        id: j.id,
+        type: j.type,
+        job_title: j.job_title,
+        company: j.company,
+        apply_email: j.apply_email,
+        status: j.status,
+        created_at: j.created_at,
       })),
       messages_count: msgCountRes.rows[0]?.count || 0,
     };

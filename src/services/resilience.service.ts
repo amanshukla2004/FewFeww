@@ -10,14 +10,26 @@ export class ResilienceService {
   private inMemoryCounts = new Map<string, { count: number; windowStart: number }>();
   private readonly WINDOW_MS = 10 * 60 * 1000; // 10 minutes
   private readonly MAX_MESSAGES = 30; // 30 messages per 10 minutes
+  private lastPruneTime = Date.now();
 
   public degradedModeActive = false;
 
+  private pruneExpired(now: number): void {
+    if (now - this.lastPruneTime < 60000) return; // prune at most once a minute
+    this.lastPruneTime = now;
+    for (const [id, entry] of this.inMemoryCounts.entries()) {
+      if (now - entry.windowStart > this.WINDOW_MS) {
+        this.inMemoryCounts.delete(id);
+      }
+    }
+  }
+
   /**
-   * Sliding window rate limiter (30 msgs / 10 min)
+   * Sliding window rate limiter (30 msgs / 10 min) with auto-pruning TTL
    */
   checkRateLimit(userId: string): RateLimitStatus {
     const now = Date.now();
+    this.pruneExpired(now);
     const entry = this.inMemoryCounts.get(userId);
 
     if (!entry || now - entry.windowStart > this.WINDOW_MS) {

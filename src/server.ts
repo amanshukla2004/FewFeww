@@ -19,6 +19,18 @@ export function buildServer() {
   app.register(sensible);
   app.register(cors, { origin: true });
 
+  // Security Headers (CSP, HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy)
+  app.addHook('onSend', async (_request, reply) => {
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('X-Frame-Options', 'DENY');
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    reply.header(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self';"
+    );
+  });
+
   // Register Core Health Route
   app.register(healthRoutes);
 
