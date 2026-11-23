@@ -4,6 +4,7 @@ import { CallbackRouter } from './callback.router.js';
 import { TelegramClient } from './telegram.client.js';
 import { userRepo } from '../db/user.repo.js';
 import { pool } from '../db/pool.js';
+import { DateTime } from 'luxon';
 
 describe('Option A Clarification Loop & Open Task Fallback', () => {
   const testUserId = 776655;
@@ -136,12 +137,13 @@ describe('Option A Clarification Loop & Open Task Fallback', () => {
 
   it('persists task recurrence when executeToolCall receives recurrence', async () => {
     const user = await userRepo.findById(dbUserId);
+    const tomorrow10am = DateTime.now().plus({ days: 1 }).toFormat("yyyy-MM-dd'T'10:00:00");
     await (dispatcher as any).executeToolCall(user, testUserId, {
       name: 'create_task',
       args: {
         title: 'DSA challenge questions',
         recurrence: 'DAILY',
-        due_local: '2026-11-23T10:00:00',
+        due_local: tomorrow10am,
         time_is_explicit: true,
       },
     });

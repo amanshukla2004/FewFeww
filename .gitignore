@@ -37,6 +37,7 @@ Thumbs.db
 
 # Large Assets & Unneeded Repository Folders
 assets/
+dashboard-resources/
 03-ARCHIVE/
 02-WORK-LATER-ROADMAP/
 01-CURRENT-MVP/
@@ -44,4 +45,8 @@ execution-steps/
 *.mp4
 *.mov
 *.avi
+
+# Local Demo Sandbox
+VOICE_CALLING-demo/
+DASHBOARD-demo/
 
