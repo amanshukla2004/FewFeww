@@ -452,6 +452,65 @@ export class CallbackRouter {
           break;
         }
 
+        case 'sprint': {
+          // 15-Minute focus sprint
+          const sprintFireAt = new Date(Date.now() + 15 * 60 * 1000);
+
+          await client.query(
+            `UPDATE reminders SET status = 'ACKED', acked_at = now(), ack_action = 'SPRINT_15M' WHERE id = $1`,
+            [reminderId]
+          );
+
+          await client.query(
+            `UPDATE reminders SET status = 'CANCELLED' WHERE task_id = $1 AND status = 'SCHEDULED'`,
+            [taskId]
+          );
+
+          await client.query(
+            `
+            INSERT INTO reminders (user_id, task_id, kind, nudge_stage, fire_at, status)
+            VALUES ($1, $2, 'USER', 0, $3, 'SCHEDULED')
+            `,
+            [user.id, taskId, sprintFireAt]
+          );
+
+          replyText = `⏱️ <b>15-Minute Sprint Started!</b>\n\nFocus on <i>"${title}"</i> right now. I will check back in when the timer rings!`;
+          break;
+        }
+
+        case 'eve': {
+          // Push to evening (e.g. 18:30 in user timezone)
+          let evening = DateTime.now().setZone(user.timezone).set({ hour: 18, minute: 30, second: 0, millisecond: 0 });
+          if (evening.toMillis() <= Date.now() + 30 * 60 * 1000) {
+            evening = DateTime.now().setZone(user.timezone).plus({ hours: 2 });
+          }
+
+          const newFireAt = evening.toUTC().toJSDate();
+
+          await client.query(
+            `UPDATE reminders SET status = 'ACKED', acked_at = now(), ack_action = 'EVENING' WHERE id = $1`,
+            [reminderId]
+          );
+
+          await client.query(
+            `UPDATE reminders SET status = 'CANCELLED' WHERE task_id = $1 AND status = 'SCHEDULED'`,
+            [taskId]
+          );
+
+          await client.query(`UPDATE tasks SET due_at = $2, updated_at = now() WHERE id = $1`, [taskId, newFireAt]);
+
+          await client.query(
+            `
+            INSERT INTO reminders (user_id, task_id, kind, nudge_stage, fire_at, status)
+            VALUES ($1, $2, 'USER', 0, $3, 'SCHEDULED')
+            `,
+            [user.id, taskId, newFireAt]
+          );
+
+          replyText = `🌙 <b>Moved to Evening (${evening.toFormat('hh:mm a')}):</b> ${title}`;
+          break;
+        }
+
         default:
           replyText = `Action ${action} executed.`;
           break;

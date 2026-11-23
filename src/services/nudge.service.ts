@@ -12,19 +12,24 @@ export class NudgeService {
 
     switch (r.nudge_stage) {
       case 0:
-        // Stage 1: 2 hours after initial reminder
+        // Stage 1 (Reality Check): +15 minutes after initial reminder
         nextStage = 1;
-        delayMs = 2 * 60 * 60 * 1000;
+        delayMs = 15 * 60 * 1000;
         break;
       case 1:
-        // Stage 3: 3 days after task creation
+        // Stage 2 (Friction Reducer): +30 minutes after Stage 1 (+45 mins overdue)
+        nextStage = 2;
+        delayMs = 30 * 60 * 1000;
+        break;
+      case 2:
+        // Stage 3 (Timebox Sprint choice): +2 hours after Stage 2 (~3 hours overdue)
         nextStage = 3;
-        delayMs = 3 * 24 * 60 * 60 * 1000;
+        delayMs = 2 * 60 * 60 * 1000;
         break;
       case 3:
-        // Stage 4: 7 days after task creation
+        // Stage 4 (End of Day Graceful Drop): +5 hours after Stage 3 (End of day)
         nextStage = 4;
-        delayMs = 4 * 24 * 60 * 60 * 1000;
+        delayMs = 5 * 60 * 60 * 1000;
         break;
       default:
         // Stage 4 is the final stage

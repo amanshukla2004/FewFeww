@@ -20,7 +20,7 @@ describe('5-Stage Nudge Ladder Service', () => {
     await pool.end();
   });
 
-  it('schedules Stage 1 (+2h) following Stage 0 reminder', async () => {
+  it('schedules Stage 1 (+15m) following Stage 0 reminder', async () => {
     const task = await taskService.createTask({
       userId: dbUserId,
       title: 'Submit report',
@@ -51,8 +51,8 @@ describe('5-Stage Nudge Ladder Service', () => {
 
     expect(nextRem.rowCount).toBe(1);
     const fireAt = new Date(nextRem.rows[0].fire_at).getTime();
-    expect(fireAt).toBeGreaterThan(Date.now() + 1.9 * 60 * 60 * 1000);
-    expect(fireAt).toBeLessThan(Date.now() + 2.1 * 60 * 60 * 1000);
+    expect(fireAt).toBeGreaterThan(Date.now() + 14 * 60 * 1000);
+    expect(fireAt).toBeLessThan(Date.now() + 16 * 60 * 1000);
   });
 
   it('detects anti-annoyance circuit breaker condition when 3 nudges ignored', async () => {

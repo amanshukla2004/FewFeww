@@ -123,30 +123,49 @@ export class ReminderWorker {
           ],
         ];
       } else if (r.nudge_stage === 1) {
-        text = `💬 <b>Follow-up:</b> Still planning to do <i>"${taskTitle}"</i>?`;
+        text = `💬 <b>Reality Check:</b> Just checking in on <i>"${taskTitle}"</i> — did you finish it, or should we push it?`;
         keyboard = [
           [
             { text: '✅ Done', callback_data: `r:done:${r.id}` },
-            { text: '☀️ Tomorrow', callback_data: `r:tom:${r.id}` },
+            { text: '⏳ 1 Hour', callback_data: `r:snz1:${r.id}` },
           ],
-          [{ text: '🗑 Drop', callback_data: `r:drop:${r.id}` }],
-        ];
-      } else if (r.nudge_stage === 3) {
-        text = `⚠️ <b>3-Day Check-in:</b> <i>"${taskTitle}"</i> has been open for 3 days. Reschedule or drop?`;
-        keyboard = [
           [
             { text: '☀️ Tomorrow', callback_data: `r:tom:${r.id}` },
             { text: '🗑 Drop', callback_data: `r:drop:${r.id}` },
           ],
-          [{ text: '👌 Keep', callback_data: `r:keep:${r.id}` }],
         ];
-      } else if (r.nudge_stage === 4) {
-        text = `📦 <b>Archive Suggestion:</b> <i>"${taskTitle}"</i> has been open for 7 days. Want me to archive this task?`;
+      } else if (r.nudge_stage === 2) {
+        text = `⚡ <b>Friction Reducer:</b> Feeling resistance on <i>"${taskTitle}"</i>?\n\nLet's not worry about the whole task right now. Just do <b>Step 1 for 2 minutes</b> to break the inertia:\n👉 <i>Open the workspace / document and do the very first step.</i>`;
         keyboard = [
           [
-            { text: '🗑 Archive/Drop', callback_data: `r:drop:${r.id}` },
-            { text: '👌 Keep', callback_data: `r:keep:${r.id}` },
+            { text: '✅ Done', callback_data: `r:done:${r.id}` },
+            { text: '⏳ 1 Hour', callback_data: `r:snz1:${r.id}` },
           ],
+          [
+            { text: '☀️ Tomorrow', callback_data: `r:tom:${r.id}` },
+            { text: '🗑 Drop', callback_data: `r:drop:${r.id}` },
+          ],
+        ];
+      } else if (r.nudge_stage === 3) {
+        text = `⏱️ <b>Timebox Sprint:</b> <i>"${taskTitle}"</i> is still pending.\n\nWant to knock out a quick 15-minute sprint right now, or move it to this evening?`;
+        keyboard = [
+          [
+            { text: '⏱️ 15m Sprint', callback_data: `r:sprint:${r.id}` },
+            { text: '🌙 This Evening', callback_data: `r:eve:${r.id}` },
+          ],
+          [
+            { text: '☀️ Tomorrow', callback_data: `r:tom:${r.id}` },
+            { text: '🗑 Drop', callback_data: `r:drop:${r.id}` },
+          ],
+        ];
+      } else if (r.nudge_stage === 4) {
+        text = `🕊️ <b>Graceful Release:</b> <i>"${taskTitle}"</i> slipped today.\n\nLet's keep your mind clear and prevent to-do backlog debt. Do you want to push this to tomorrow, or drop it guilt-free?`;
+        keyboard = [
+          [
+            { text: '📅 Tomorrow', callback_data: `r:tom:${r.id}` },
+            { text: '🗑️ Drop Guilt-Free', callback_data: `r:drop:${r.id}` },
+          ],
+          [{ text: '✅ Done', callback_data: `r:done:${r.id}` }],
         ];
       }
 
