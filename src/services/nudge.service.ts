@@ -17,9 +17,9 @@ export class NudgeService {
         delayMs = 15 * 60 * 1000;
         break;
       case 1:
-        // Stage 2 (Friction Reducer): +30 minutes after Stage 1 (+45 mins overdue)
+        // Stage 2 (Friction Reducer): +15 minutes after Stage 1 (+30 mins overdue total)
         nextStage = 2;
-        delayMs = 30 * 60 * 1000;
+        delayMs = 15 * 60 * 1000;
         break;
       case 2:
         // Stage 3 (Timebox Sprint choice): +2 hours after Stage 2 (~3 hours overdue)

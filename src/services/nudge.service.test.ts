@@ -55,6 +55,38 @@ describe('5-Stage Nudge Ladder Service', () => {
     expect(fireAt).toBeLessThan(Date.now() + 16 * 60 * 1000);
   });
 
+  it('schedules Stage 2 Friction Reducer (+15m after Stage 1, +30m overdue total)', async () => {
+    const task = await taskService.createTask({
+      userId: dbUserId,
+      title: 'Finish deck',
+      dueLocal: '2026-11-25T15:00:00',
+      timeIsExplicit: true,
+      userTimezone: 'Asia/Kolkata',
+      defaultReminderTime: '09:00',
+    });
+
+    await nudgeService.scheduleNextStage({
+      id: 'mock-stage-1',
+      user_id: dbUserId,
+      task_id: String(task.taskId),
+      kind: 'NUDGE',
+      nudge_stage: 1,
+      fire_at: new Date(),
+      status: 'SENT',
+      attempt_count: 0,
+    });
+
+    const nextRem = await pool.query(
+      `SELECT * FROM reminders WHERE task_id = $1 AND nudge_stage = 2 AND status = 'SCHEDULED'`,
+      [task.taskId]
+    );
+
+    expect(nextRem.rowCount).toBe(1);
+    const fireAt = new Date(nextRem.rows[0].fire_at).getTime();
+    expect(fireAt).toBeGreaterThan(Date.now() + 14 * 60 * 1000);
+    expect(fireAt).toBeLessThan(Date.now() + 16 * 60 * 1000);
+  });
+
   it('detects anti-annoyance circuit breaker condition when 3 nudges ignored', async () => {
     const task = await taskService.createTask({
       userId: dbUserId,
