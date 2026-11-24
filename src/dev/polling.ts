@@ -39,6 +39,16 @@ async function startPolling() {
   }, 60000);
 
   let offset = 0;
+  try {
+    const maxRes = await pool.query('SELECT MAX(update_id) as max_id FROM inbox_updates');
+    if (maxRes.rows[0]?.max_id) {
+      offset = Number(maxRes.rows[0].max_id) + 1;
+      console.log(`ℹ️  Resuming polling from update offset: ${offset}`);
+    }
+  } catch (err: any) {
+    console.warn('⚠️  Could not read max update_id:', err.message);
+  }
+
   console.log(`\n🚀 FEWFEWW IS LIVE & LISTENING!`);
   console.log(`👉 Open Telegram on your phone/PC and message: @${config.telegram.botUsername}`);
   console.log(`👉 Send "/start" to begin onboarding!\n`);
@@ -58,7 +68,8 @@ async function startPolling() {
   while (true) {
     try {
       const res = await fetch(
-        `https://api.telegram.org/bot${config.telegram.botToken}/getUpdates?offset=${offset}&timeout=25`
+        `https://api.telegram.org/bot${config.telegram.botToken}/getUpdates?offset=${offset}&timeout=20`,
+        { signal: AbortSignal.timeout(30000) }
       );
       const data = (await res.json()) as any;
 
