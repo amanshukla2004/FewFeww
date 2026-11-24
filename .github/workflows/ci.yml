@@ -42,6 +42,11 @@ jobs:
       - name: TypeScript Compilation
         run: npm run build
 
+      - name: Run Database Migrations
+        env:
+          DATABASE_URL: postgres://fewfeww:devpassword@localhost:5432/fewfeww
+        run: npm run migrate
+
       - name: Run Unit & Integration Tests
         env:
           DATABASE_URL: postgres://fewfeww:devpassword@localhost:5432/fewfeww
@@ -49,4 +54,4 @@ jobs:
           TELEGRAM_WEBHOOK_SECRET: webhook-dev-fewfeww
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_MODEL: openai/gpt-oss-120b
-        run: npx vitest run --exclude "**/runner.test.ts"
+        run: npm test
